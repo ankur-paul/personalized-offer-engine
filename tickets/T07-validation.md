@@ -1,5 +1,5 @@
 # T07 — Validation with the rule-breaking property test (test-first)
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T06 · **Branch:** t07-validation
 
 ## Goal
@@ -23,6 +23,23 @@ rule-breaking proposals never pass. M2 (PLAN §3.5 step 3, §7; ADR 0001). Writt
   caption/reason; plus whatever `caption_checker` returns.
 - Report **all** failures, not just the first.
 
+Done as built:
+- Each failure reads `code: detail (rule)`. The bracket names the Rule broken, e.g.
+  `short_circuit: holdout (holdout_pct)` or `over_budget: ₹300 > ₹200 left (weekly_budget)`. A value below a range
+  says `(minimum)`, except `min_basket`, which says `(margin_floor_pct)`.
+- A short-circuit replaces the Offer Type, param, cost and send-time checks, which have no Eligible Set to check
+  against. The featured-product, caption and reason checks still run.
+- Only `pct_category` takes a category. Any other Offer Type with a category fails `category_not_eligible`. Its
+  featured products only need to be in the Customer's own events of the last 90 days.
+- `send_at=None` on an Offer fails `send_at_missing`. It does not mean "send now", so a chooser sets the time.
+  A send time outside the window names `in the past`, `max_send_delay_hours`, `send_hour_start`, `send_hour_end`
+  or `send_window` (allowed hours on a later day; only the first allowed span is open).
+- Cost is the worst case in both budget modes, with ₹0.000001 of slack for float rounding at the top of a range.
+- Params that are NaN or infinite fail `param_out_of_range`. Without that check, NaN would pass every comparison.
+- The property test runs short-circuit, Offer Type, category, budget and cost-cap mutations alone, because each one
+  reshapes the whole Eligible Set. It combines the others, one per part of the proposal. `--hypothesis-show-statistics`
+  lists how often each mutation ran. Disabling any one check in `validate` makes it fail.
+
 ## Tests (write first)
 - `tests/test_validation.py`: a valid proposal passes; one test per failure code.
 - `tests/test_validation_property.py` (hypothesis): generate a valid proposal from a random fixture Customer and
@@ -37,7 +54,7 @@ rule-breaking proposals never pass. M2 (PLAN §3.5 step 3, §7; ADR 0001). Writt
 examples.
 
 ## Done when
-- [ ] `validate` re-derives the Eligible Set and checks every Rule in Details
-- [ ] Property test with ≥500 examples shows no rule-breaking proposal passes
-- [ ] PROGRESS.md line added; `uv run pytest` green
-- [ ] Committed: `T07: Validation and rule-breaking property test`
+- [x] `validate` re-derives the Eligible Set and checks every Rule in Details
+- [x] Property test with ≥500 examples shows no rule-breaking proposal passes
+- [x] PROGRESS.md line added; `uv run pytest` green
+- [x] Committed: `T07: Validation and rule-breaking property test`
