@@ -1,4 +1,4 @@
-"""`offer-engine eligible --demo`: print the Eligible Set and Binding Rules for a built-in fixture Customer."""
+"""`offer-engine eligible --demo | --customer ID`: print the Eligible Set and Binding Rules for a Customer."""
 
 from __future__ import annotations
 
@@ -14,22 +14,26 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     who.add_argument(
         "--demo", action="store_true", help="a built-in fixture Customer under the default Rules"
     )
-    who.add_argument("--customer", metavar="ID", help="a Customer from the database (not yet available)")
+    who.add_argument(
+        "--customer", metavar="ID", help="a Customer from the database, at clock now under the current Rules"
+    )
     parser.set_defaults(func=run)
 
 
 def run(args: argparse.Namespace) -> int:
-    if args.customer:
-        raise SystemExit("loading a Customer from the database arrives with T09; use --demo for now")
     from offer_engine.domain import RuleSet
     from offer_engine.rules import eligible_set
 
-    state, budget, now, catalog = demo_fixture()
-    rules = RuleSet()
+    if args.customer:
+        state, budget, now, catalog, version, rules = from_database(args.customer)
+        rules_label = f"rule v{version}"
+    else:
+        state, budget, now, catalog = demo_fixture()
+        rules, rules_label = RuleSet(), "default Rules"
     es = eligible_set(state, rules, budget, now, catalog)
     remaining = rules.weekly_budget - budget.spent - budget.reserved
     print(f"Eligible Set for {es.customer_id} ({state.customer.loyalty_tier}) at {now.strftime(TIME_FORMAT)}")
-    print(f"default Rules · budget left this week ₹{remaining:,.0f} of ₹{rules.weekly_budget:,.0f}")
+    print(f"{rules_label} · budget left this week ₹{remaining:,.0f} of ₹{rules.weekly_budget:,.0f}")
     if es.short_circuit:
         print(f"No Offer: {es.short_circuit} (binding: {es.binding_rule})")
         return 0
@@ -57,6 +61,26 @@ def _range(name: str, lo: float, hi: float) -> str:
         return f"≥ {unit}{lo:,.0f}"
     fmt = ",.0f" if unit else "g"
     return f"{unit}{lo:{fmt}}–{unit}{hi:{fmt}}"
+
+
+def from_database(customer_id: str):
+    from offer_engine import clock
+    from offer_engine.budget import budget_state
+    from offer_engine.customers import load_customer_state
+    from offer_engine.db import connect, load_catalog
+    from offer_engine.rules_store import current_rules
+
+    conn = connect()
+    now = clock.now(conn)
+    try:
+        state = load_customer_state(conn, customer_id, now)
+    except KeyError:
+        raise SystemExit(f"no Customer {customer_id}; run `offer-engine generate` first?") from None
+    version, rules = current_rules(conn)
+    budget = budget_state(conn, rules, now)
+    catalog = load_catalog(conn)
+    conn.close()
+    return state, budget, now, catalog, version, rules
 
 
 def demo_fixture():
