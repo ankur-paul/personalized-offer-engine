@@ -10,9 +10,11 @@ What the app does now. Edit in place when a change alters what users see or can 
 - Rule settings are versioned in the database. Version 0 is the defaults, and a revert saves a new version equal to the old one. There is no command or console page for this yet.
 - `offer-engine generate --customers N --months M --seed S` builds a fictional marketplace: 5 categories (margins 10–45%), 200 products in ₹, N Customers (IDs `C00001…` in signup order) and M months of events ending at the clock start (sessions, product views, carts, abandoned carts, orders, deliveries, returns and points). It prints counts per table and per event kind. The same seed gives the same database. Each run deletes the old world first, including Offers, Decisions and chat links.
 - `offer-engine eligible --demo` prints the Eligible Set for a built-in Customer under the default Rules: each allowed Offer Type with its parameter ranges and the Binding Rule for each limit, the send window, and the options dropped with the Rule that emptied them.
+- `offer-engine caption-check "TEXT" --offer-type T --param NAME=VALUE --category C` runs the Caption Check and prints `PASS` or one reason per line, exiting 1 on failure. It rejects numbers, ₹ amounts, percentages and multipliers that aren't the Offer's terms (digits, number words, Hinglish, emoji keycaps, Devanagari digits), deadlines ("tonight", "until Sunday", "in 6 hours", "kal tak"), invented urgency ("hurry", "only a few left"), promises the Offer doesn't make ("free gift", "cashback", free delivery on a non-shipping Offer), and captions over 280 characters or blank. Validation can use it, but nothing calls it yet (T11).
 
 ## Known limits
 
 - Nothing decides or sends Offers yet. Advancing the clock only moves the time; no events happen.
 - History has no past Offers and no Ground Truth yet. 10k Customers would take over a minute to generate.
 - `offer-engine eligible --customer ID` exits with an error until Customers can be loaded from the database (T09).
+- The Caption Check accepts a caption that names the wrong category, and "today" or "this week" when not worded as a deadline.
