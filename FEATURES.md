@@ -5,7 +5,10 @@ What the app does now. Edit in place when a change alters what users see or can 
 ## What it does
 
 - `offer-engine check-env` lists each `.env` key as `set` or `missing`, never its value. It exits 1 when `OFFER_BOT_TOKEN`, `OFFER_BOT_USERNAME` or `ANTHROPIC_API_KEY` is missing or `CUSTOMER_BOTS` is malformed.
+- `offer-engine db init` creates the SQLite database at `DB_PATH` (default `data/offer_engine.db`) or applies new schema files. Running it again is safe.
+- `offer-engine clock show` prints the simulated time, which starts at `2026-12-01 00:00`. `offer-engine clock advance --hours N` or `--days N` moves it forward. It never moves back.
+- Rule settings are versioned in the database. Version 0 is the defaults, and a revert saves a new version equal to the old one. There is no command or console page for this yet.
 
 ## Known limits
 
-- The CLI has one command so far. Nothing decides or sends Offers yet.
+- Nothing decides or sends Offers yet. Advancing the clock only moves the time; no events happen.

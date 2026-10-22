@@ -24,3 +24,14 @@ def clean_env(monkeypatch, tmp_path):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+@pytest.fixture
+def conn(tmp_path):
+    """A migrated database in a temp file."""
+    from offer_engine.db import connect, migrate
+
+    connection = connect(tmp_path / "test.db")
+    migrate(connection)
+    yield connection
+    connection.close()
