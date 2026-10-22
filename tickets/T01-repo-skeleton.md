@@ -1,5 +1,5 @@
 # T01 — Repo skeleton: uv project, CLI, config, docs
-**Status:** IN PROGRESS
+**Status:** DONE
 **Prereqs:** — · **Branch:** t01-skeleton
 
 ## Goal
@@ -32,6 +32,10 @@ layout. First ticket of M1 (PLAN §8); layout in PLAN "Assumed › Code layout".
 - Python 3.14 is installed locally; 3.12 is the floor so hosts with older Python work (T29).
 - Command modules must import heavy dependencies inside their handler, not at module top, so `--help` stays fast.
 
+- Done as built: `check-env` also takes `--env-file PATH`, reports a malformed `CUSTOMER_BOTS` or `SEED` as an
+  error and exits 1. `python -m offer_engine` runs the CLI. `FEATURES.md` starts with the `check-env` bullet
+  instead of an empty list. The process environment overrides `.env`; empty values count as missing.
+
 ## Tests
 - `tests/test_cli.py`: `--help` lists `check-env`; a temporary command module in a monkeypatched package is
   discovered without editing `cli.py`.
@@ -43,8 +47,8 @@ layout. First ticket of M1 (PLAN §8); layout in PLAN "Assumed › Code layout".
 `check-env`, check-env lists keys as missing (no `.env` yet) and exits 1, tests pass.
 
 ## Done when
-- [ ] `uv run offer-engine --help` lists `check-env`
-- [ ] Commands are discovered from `offer_engine/commands/` with no list to edit
-- [ ] `.env.example`, `PROGRESS.md`, `FEATURES.md` exist; `PROGRESS.md` has its first `[T01]` line
-- [ ] `uv run pytest` green
-- [ ] Committed: `T01: repo skeleton, CLI and config`
+- [x] `uv run offer-engine --help` lists `check-env`
+- [x] Commands are discovered from `offer_engine/commands/` with no list to edit
+- [x] `.env.example`, `PROGRESS.md`, `FEATURES.md` exist; `PROGRESS.md` has its first `[T01]` line
+- [x] `uv run pytest` green
+- [x] Committed: `T01: repo skeleton, CLI and config`
