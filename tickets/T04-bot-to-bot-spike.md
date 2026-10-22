@@ -1,5 +1,5 @@
 # T04 — Bot-to-bot spike: Offer Card to a Customer Bot and a Tester
-**Status:** IN PROGRESS
+**Status:** BLOCKED (needs human: run the Check with real bot tokens from `offer-engine setup`; bot-to-bot delivery is untested)
 **Prereqs:** T02 · **Branch:** t04-bot-spike
 
 ## Goal
@@ -37,6 +37,25 @@ M1 (PLAN §4.1, §8; ADR 0005).
   set `**Status:** BLOCKED (bot-to-bot: <what failed>)` and tell the user. PLAN §8 contingency then applies
   (Customer Bots become a console view).
 
+Done as built:
+- No direct HTTP call was needed. python-telegram-bot 22.8 targets Bot API 10.0, whose changelog says bots can
+  "send messages to other bots via username if both bots enabled bot-to-bot communication". `send_photo` and
+  `send_message` take `@username` as `chat_id`.
+- Telegram's docs don't say whether a bot's `/claim CODE` in a private chat carries a `bot_command` entity, so the
+  Offer Bot matches `/claim` with a text regex (`CLAIM_PATTERN` in `handlers/demo.py`), not a `CommandHandler`.
+  A wrong or missing code gets a hint, and only `POE-DEMO01` is claimed.
+- The Customer Bot claims each code once and ignores everything except photos and text from the Offer Bot.
+  Telegram asks bot-to-bot handlers to "terminate predictably", and this rules out reply loops.
+- The font is Noto Sans (variable, OFL) as `assets/fonts/NotoSans-VF.ttf`. Pillow selects the Regular and Bold
+  instances. `format_inr` groups digits the Indian way (`₹1,50,000`).
+- `/start` from a bot is ignored. The demo Customer row is `C00001`, a silver-tier Android Customer who signed up
+  30 days before clock now. `chats` holds one chat per Customer, so the latest Tester to `/start` takes over
+  `C00001`. T25 adds per-Tester copies.
+- `offer-engine start`: when a process exits 0 the rest keep running, and when one fails all stop. With no
+  `CUSTOMER_BOTS` the simulator exits 0, so the Offer Bot still serves Testers. Both bot processes set httpx
+  logging to WARNING, because httpx logs request URLs, and Telegram URLs contain the token.
+- Not run against Telegram: the agent has no bot tokens (no `.env`; T03 is blocked on the same human step).
+
 ## Tests
 - `tests/test_offer_card.py`: `offer_terms` for every Offer Type; the PNG decodes and has the expected size; a
   Nudge card has no ₹ line.
@@ -50,9 +69,10 @@ Bot's chat with the Offer Bot shows the card and the bot's `/claim POE-DEMO01` r
 Claim.
 
 ## Done when
-- [ ] Offer Card PNG renders terms for all five Offer Types from an `Offer`
+- [x] Offer Card PNG renders terms for all five Offer Types from an `Offer`
 - [ ] A Tester `/start` receives the demo card
 - [ ] The Customer Bot receives the card from the Offer Bot and its `/claim` is acknowledged (or ticket BLOCKED per Contingency)
-- [ ] `offer-engine start` runs both bots
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T04: bot-to-bot spike with Offer Card`
+- [x] `offer-engine start` runs both bots
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T04: bot-to-bot spike with Offer Card`
+- [ ] Check run with real bot tokens (covers the two unticked items above)
