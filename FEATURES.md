@@ -8,7 +8,9 @@ What the app does now. Edit in place when a change alters what users see or can 
 - `offer-engine db init` creates the SQLite database at `DB_PATH` (default `data/offer_engine.db`) or applies new schema files. Running it again is safe.
 - `offer-engine clock show` prints the simulated time, which starts at `2026-12-01 00:00`. `offer-engine clock advance --hours N` or `--days N` moves it forward. It never moves back.
 - Rule settings are versioned in the database. Version 0 is the defaults, and a revert saves a new version equal to the old one. There is no command or console page for this yet.
+- `offer-engine generate --customers N --months M --seed S` builds a fictional marketplace: 5 categories (margins 10–45%), 200 products in ₹, N Customers (IDs `C00001…` in signup order) and M months of events ending at the clock start (sessions, product views, carts, abandoned carts, orders, deliveries, returns and points). It prints counts per table and per event kind. The same seed gives the same database. Each run deletes the old world first, including Offers, Decisions and chat links.
 
 ## Known limits
 
 - Nothing decides or sends Offers yet. Advancing the clock only moves the time; no events happen.
+- History has no past Offers and no Ground Truth yet. 10k Customers would take over a minute to generate.

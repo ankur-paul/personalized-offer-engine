@@ -38,10 +38,14 @@ def test_connect_defaults_to_settings_db_path(clean_env, monkeypatch):
 
 def test_migrate_creates_core_tables_and_is_idempotent(tmp_path):
     conn = connect(tmp_path / "x.db")
-    assert migrate(conn) == ["t02_core.sql"]
+    every_file = sorted(path.name for path in SCHEMA_DIR.glob("*.sql"))
+    assert migrate(conn) == every_file
+    assert every_file[0] == "t02_core.sql"
     assert CORE_TABLES <= tables(conn)
     assert migrate(conn) == []
-    assert [row[0] for row in conn.execute("SELECT filename FROM schema_migrations")] == ["t02_core.sql"]
+    assert [
+        row[0] for row in conn.execute("SELECT filename FROM schema_migrations ORDER BY filename")
+    ] == every_file
 
 
 def test_later_schema_file_applies_after_core(tmp_path):
