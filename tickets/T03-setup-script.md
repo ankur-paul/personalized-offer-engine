@@ -1,5 +1,5 @@
 # T03 — Interactive bot setup script
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T01 · **Branch:** t03-setup-script
 
 ## Goal
