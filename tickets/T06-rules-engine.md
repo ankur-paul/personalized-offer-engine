@@ -1,5 +1,5 @@
 # T06 — Rules engine: Eligible Set with Binding Rules (test-first)
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T02 · **Branch:** t06-rules-engine
 
 ## Goal
