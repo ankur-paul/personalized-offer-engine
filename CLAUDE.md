@@ -12,6 +12,10 @@ These points are settled in `docs/adr/`. Change one only through a new ADR:
 
 For everything else, follow `docs/PLAN.md` (v2, agreed). Re-read the relevant section before starting a feature; if the plan changes, record why in `docs/QnA.md` or a new ADR. Name things in code and docs with the `GLOSSARY.md` terms exactly. If a feature isn't covered by these sources, ask before building it.
 
+## Tickets
+
+Work is split into tickets in `tickets/`. Before you pick, start or finish a ticket, read `tickets/README.md`: it has the board, the claim rule and the ticket lifecycle. Prefix commit messages with the ticket ID (`T03: …`).
+
 ## Docs
 
 - Record every feature you build in `PROGRESS.md`, in the same commit as the feature.
@@ -19,7 +23,7 @@ For everything else, follow `docs/PLAN.md` (v2, agreed). Re-read the relevant se
 - Parallel branches will conflict on this file; resolve by keeping **both** sides' lines.
 - Note anything cut, known bugs or workarounds under "Known issues / cuts" so the demo has no surprises.
 - `FEATURES.md` describes what the app does now. A commit that changes what users see or can do updates the matching bullet, and its "Known limits", in the same commit. Edit it in place; it is not a log. On a merge conflict, keep both sides' changes.
-- use "/no-ai-slop" skill to write the files in a concise, clear manner while still capturing the complete information. unless the I explicitly ask for a detailed text.
+- use "/unslop" skill to write the files in a concise, clear manner while still capturing the complete information. unless the I explicitly ask for a detailed text.
 
 - Put all the questions-answers in a grilling session in the QnA md file, under docs. its mostly for record keeping and maybe later docs generation.
 
@@ -32,6 +36,10 @@ For everything else, follow `docs/PLAN.md` (v2, agreed). Re-read the relevant se
 - Every feature or module you build ships with tests covering its behaviour, in the same commit.
 - Changes to the Rules engine or Validation are written test-first, including the property test that random rule-breaking proposals never pass.
 - Before every commit, run the full test suite once. Commit only when it is green; if it goes red, fix the cause first.
+
+## Friction log
+
+When building surfaces something non-obvious that is wrong, missing or debatable in a skill, this file, the docs or the workflow itself, append an entry to `FRICTION-LOG.md` in the format at its top, then carry on. It feeds improvements to the setup, not the app.
 
 ## Note
 

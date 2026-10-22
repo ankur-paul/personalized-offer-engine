@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{ echo 'Ticket board (python3 tickets/board.py; rules in tickets/README.md):'; python3 \"$CLAUDE_PROJECT_DIR/tickets/board.py\"; } 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
