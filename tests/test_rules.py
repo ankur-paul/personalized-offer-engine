@@ -518,8 +518,3 @@ def test_cli_eligible_demo(capsys):
     assert "binding: max_pct_by_loyalty_tier" in out
     assert "nudge" in out
     assert "send window" in out
-
-
-def test_cli_eligible_customer_not_yet_supported():
-    with pytest.raises(SystemExit, match="--demo"):
-        main(["eligible", "--customer", "C00001"])
