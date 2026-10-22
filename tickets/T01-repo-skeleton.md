@@ -1,5 +1,5 @@
 # T01 — Repo skeleton: uv project, CLI, config, docs
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** — · **Branch:** t01-skeleton
 
 ## Goal
