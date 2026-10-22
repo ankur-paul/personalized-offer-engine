@@ -1,5 +1,5 @@
 # T05 — Catalog and Customer generator with organic history
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T02 · **Branch:** t05-generator
 
 ## Goal
