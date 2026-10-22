@@ -1,5 +1,5 @@
 # T08 — Caption Check with adversarial bad-caption set (test-first)
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T02 · **Branch:** t08-caption-check
 
 ## Goal
@@ -26,6 +26,17 @@ Reason codes:
 - Captions may mention the category, featured products and the Customer's own context without numbers.
 - Keep the matcher simple and table-driven so the adversarial file grows without code changes.
 
+Done as built:
+- `check` returns `code: detail` strings (`number_mismatch: 30%`), one per code in a fixed order, the same format as
+  Validation's other failures. Tests compare the codes.
+- `check` takes a keyword-only `validity_days` (default: the Rule's default, 3), since it gets no `RuleSet`. T11
+  passes the live value with `functools.partial`.
+- Numbers are matched by kind: a percentage must equal `pct`, a ₹ amount `cap`, `amount` or `min_basket`, a
+  multiplier ("2x", "double") `multiplier`. A bare number may equal any term or the validity days.
+- Digits inside a featured product's name ("Basmati Rice 5kg") don't count as numbers. Deadline phrases are masked
+  before numbers are read, so "9pm" is reported once, as a deadline.
+- The CLI uses an empty Catalog, so it has no `--featured` option.
+
 ## Tests (write first)
 `tests/test_caption_check.py` runs every case in `captions.jsonl`: at least 40 bad captions (covering every
 reason code, Hinglish and emoji variants, numbers spelled out, prices of featured products) and at least 15 good
@@ -36,8 +47,8 @@ ones that must pass.
 → `number_mismatch`, `deadline_mismatch`, `invented_urgency`.
 
 ## Done when
-- [ ] `check` returns the reason codes in Details
-- [ ] `captions.jsonl` has ≥40 bad and ≥15 good cases, all passing the test
-- [ ] `offer-engine caption-check` prints reasons
-- [ ] PROGRESS.md line added; `uv run pytest` green
-- [ ] Committed: `T08: Caption Check with adversarial captions`
+- [x] `check` returns the reason codes in Details
+- [x] `captions.jsonl` has ≥40 bad and ≥15 good cases, all passing the test
+- [x] `offer-engine caption-check` prints reasons
+- [x] PROGRESS.md line added; `uv run pytest` green
+- [x] Committed: `T08: Caption Check with adversarial captions`
