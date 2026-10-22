@@ -1,5 +1,5 @@
 # T07 — Validation with the rule-breaking property test (test-first)
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T06 · **Branch:** t07-validation
 
 ## Goal
