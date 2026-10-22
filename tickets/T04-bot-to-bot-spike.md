@@ -1,5 +1,5 @@
 # T04 — Bot-to-bot spike: Offer Card to a Customer Bot and a Tester
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T02 · **Branch:** t04-bot-spike
 
 ## Goal
