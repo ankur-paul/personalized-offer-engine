@@ -30,6 +30,9 @@ Constraints: solo build, ~1–2 weeks. Synthetic data only. Secrets in `.env`, n
 ### 2.4 Simulation Clock (ADR 0003)
 One global clock for every Rule, event and expiry. Only the console advances it (manual +1 day, or an auto mode for demos). Wall-clock time is used only for Telegram delivery.
 
+### 2.5 Live world
+Each simulated day, the simulator generates events for all ~10k Customers, and Triggers and the Daily Sweep run the pipeline for every one of them. The agent decides for Customers attached to a Customer Bot or a Tester. The rule-based chooser that the Fallback uses decides for everyone else. Ground Truth settles outcomes: a plain weighted coin flip for Customers without a chat, the bounded role-play for Customer Bots (§4.2), and the flip after a Claim for Testers (§4.1). The offline Policy simulator (§5) reuses the same day-step code.
+
 ## 3. Deciding
 
 ### 3.1 Triggers
@@ -67,6 +70,7 @@ The engine learns Estimated Lift from the synthetic history's past random Offers
 - Sends an **Offer Card** image whose terms (amount, minimum basket, category, expiry) are drawn by code from the validated Offer, plus the agent's caption and buttons **Claim / Not now / Stop** (ADR 0005).
 - Accepts Claims by button or text (`/claim CODE`) so Customer Bots can claim.
 - **Testers** (humans) `/start`, pick a Customer from Persona Card buttons or "Surprise me", and get their own copy of it. Same code path as Customer Bots. A Tester who picks the Holdout Customer is told they're in the control group.
+- A Tester's Claim becomes a Redemption by a weighted coin flip on that Customer's Ground Truth, with no agent nudge. The Offer Bot then tells the Tester the result, e.g. "Simulated order: ₹1,240 basket, code used".
 
 ### 4.2 Customer Bots (ADR 0004)
 - 6–8 showcase Customers from the population, each embodied by a Customer Bot via Bot API 10.0 bot-to-bot messaging (Bot-to-Bot Communication Mode on for every bot). Cases: at-risk high value, new one-order, deal hunter, expiring points, cart abandoner, a Sure Thing who should get No Offer, and one deliberately in the Holdout.
@@ -116,3 +120,37 @@ Each milestone is a working vertical slice, committed.
 **Cut line**: M1–M6 is the submission. M7 items drop one by one if time runs short, except deployment and README, which are mandatory.
 
 **Contingency**: if M1 shows bot-to-bot messaging doesn't work as documented, switch to Testers only (own and friends' accounts) and show Customer Bots as a console view.
+
+## Assumed (approved 2026-10-22)
+
+Defaults chosen when the plan was split into tickets (`tickets/`). Several tickets rely on each of them.
+
+### Code layout
+- The package is `src/offer_engine/`, the console is `console/` (a Streamlit multipage app, one file per page in `console/pages/`), and tests live in `tests/`. Run everything with `uv run`.
+- `offer-engine` is the CLI. `cli.py` discovers subcommands in `offer_engine/commands/`; each module there defines `register(subparsers)`. Adding a command never edits a shared file.
+- `offer_engine/domain.py` holds the shared types (T02). Only a ticket whose Scope says so changes them.
+- SQLite schema lives in `offer_engine/schema/`, one file per ticket named `tNN_<name>.sql`. Files apply in name order. A ticket adds its own file and doesn't edit another ticket's.
+- `offer_engine/sim/` is the simulator. It is the only package that reads Ground Truth and the other hidden simulator data, all kept in tables named `sim_*` (`sim_ground_truth`, `sim_customer_traits`, …). The pipeline modules (`customers`, `budget`, `rules`, `validation`, `caption_check`, `pipeline`, `choosers`, `lift`, `triggers`, `daily_sweep`, `offer_bot`) never import `offer_engine.sim` and never name a `sim_*` table. A test from T02 enforces both. Entry points (`commands`, `console`, `customer_sim`) may import both sides.
+
+### World and time
+- The Simulation Clock counts in simulated hours. "+1 day" processes 24 hours in order. The Daily Sweep runs at 10:00 simulated time. Generated history ends at the clock's start time.
+- An Offer is valid for 3 simulated days (Rule setting `offer_validity_days`). Codes look like `POE-` plus 6 uppercase letters and digits.
+- Delivery goes through the database. The pipeline writes Offers as `queued` with a `send_at`. The Offer Bot polls for queued Offers to chat-attached Customers whose `send_at` has passed in simulated time. The day-step marks Offers to everyone else as sent. Other bot messages (Redemption notices, withdrawals) go through an `outbox` table.
+- A Customer is chat-attached when the `chats` table links it to a Customer Bot or a Tester.
+
+### Deciding
+- Choosers are recorded on the Decision as `agent` (the agent's proposal passed Validation), `fallback` (the agent failed or was down, so the rules chooser decided) or `rules` (a Customer without a chat).
+- The rules chooser serves as the Fallback, the chooser for Customers without a chat, and the Rules Only Policy. It picks the option and parameters that maximise Estimated Lift × expected margin − expected cost, and picks No Offer if nothing is positive. Until Estimated Lift exists (T16) it uses fixed priors per Offer Type from `offer_engine/choosers/priors.py`.
+- Cost model: % off costs pct × expected basket in that category, capped at the ₹ cap (the cap is the worst case). Flat ₹ off costs the amount. Free shipping costs ₹40. A points multiplier costs the extra points × ₹0.25. A Nudge costs ₹0. Expected cost is the cost × the chance of Redemption.
+- Estimated Lift v1 segments are loyalty tier × recency bucket (≤30, 31–90, >90 days since last order) × coupon-user flag, per Offer Type. A segment with fewer than 30 past Offers falls back to the Offer Type average.
+- The Daily Sweep decides chat-attached Customers first, so the weekly budget can't run out before the live demo Customers are considered.
+- Rule versions record "who" as a free-text name typed on the console form. There is no login.
+- Agent model IDs come from `.env` (`OFFER_AGENT_MODEL`, `FAST_AGENT_MODEL`). Look them up with the `claude-api` skill when building T11.
+
+### Outcomes and measuring
+- A Customer without a chat buys within the Offer window with Ground Truth chance p(d). Every Redeemer counts as Claimed, and 25% of non-Redeemers Claim without buying.
+- A Tester copy has the ID `<customer id>-t<telegram user id>` and the original's Holdout status. Copies are left out of population metrics.
+- Blanket 20% sends 20% off the Customer's top category, uncapped, at every Trigger, to every Customer who isn't in the Holdout or opted out.
+- An offline Policy run covers 28 simulated days after the history ends, with the same seed for every Policy.
+- The adversarial set from M7 is split: bad captions ship with the Caption Check (T08), manipulative customer replies with haggling (T34).
+- If T04 shows bot-to-bot messaging doesn't work, T04 goes BLOCKED and the §8 contingency applies: Customer Bots become a console view.

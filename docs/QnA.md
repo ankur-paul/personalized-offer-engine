@@ -132,3 +132,13 @@ Decided: rename `master` to `main`, add a `.gitignore` that excludes `.env` and 
 
 **Q36. Bot setup help?**
 Decided: an interactive setup script in M1 walks through creating the bots in BotFather, enabling Bot-to-Bot Communication Mode and filling `.env`.
+
+## Round 7: before ticketing
+
+**Q37. Which Customers does the live world simulate when the clock advances?**
+Options: all ~10k Customers, with the agent deciding only for Customers that have a chat; only the showcase Customers and Testers' copies.
+Decided: all ~10k. The agent decides for Customers attached to a Customer Bot or Tester, and the rule-based chooser decides for the rest. Ground Truth settles outcomes. This gives a real live funnel against the Holdout and budgets that actually run down, and the offline Policy simulator reuses the same day-step code. Recorded in `docs/PLAN.md` §2.5.
+
+**Q38. How does a human Tester's Claim become a Redemption?**
+Options: a Ground Truth coin flip; a "Buy now" button the Tester presses; Claims only.
+Decided: a weighted coin flip on the Customer's Ground Truth, without the agent nudge Customer Bots get. The Offer Bot then reports the simulated order. A button would let human whims into the Redemption metrics. Recorded in `docs/PLAN.md` §4.1.
