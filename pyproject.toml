@@ -24,6 +24,7 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+pythonpath = ["."]
 markers = [
     "live: talks to Telegram or the Claude API; run with -m live",
     "slow: long-running; run with -m slow",

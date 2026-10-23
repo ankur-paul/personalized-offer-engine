@@ -19,6 +19,7 @@ What has been built, one line per feature, in the order it landed.
 - [T03] `offer-engine setup` walks through creating the Offer Bot and 6–8 Customer Bots in BotFather, checks each token with `getMe`, and fills `.env` with mode 0600 (`uv run offer-engine setup`; re-run it to keep or replace values)
 - [T04] Offer Card PNG drawn from an Offer; Offer Bot sends a demo card on `/start` and acknowledges `/claim CODE`; first Customer Bot claims cards it receives; `offer-engine start` runs both bots (`uv run offer-engine start`, then `/start` to the Offer Bot; `uv run offer-engine demo-send` for the Customer Bot)
 - [T19] Event Triggers: each simulated hour, an abandoned cart, points expiring within 7 days, 45 days since the last order and a first delivery each run the decision pipeline once per underlying event (`trigger_log`), and `clock advance` counts them as `decisions.<trigger>`. `trigger cart-abandoned` uses the same de-duplication (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1 && uv run offer-engine decisions --last 10`)
+- [T21] Streamlit console: Simulation Clock page with +1 hour, +1 day and Auto mode, and a Decision log with filters and the selected row's Offer; `offer-engine start` also runs it (`uv run offer-engine generate --customers 2000 && uv run streamlit run console/app.py`, press **+1 day**, then open Decision log)
 
 ## Known issues / cuts
 
@@ -41,3 +42,4 @@ What has been built, one line per feature, in the order it landed.
 - `tests/sim/test_day_step.py` stubs the Triggers hook so its checks on the world's events and Offers stay exact. `tests/test_triggers.py` and `tests/sim/test_triggers_world.py` test the Triggers.
 - When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.
+- `streamlit.testing.v1.AppTest` drops sidebar elements after a session's first run when the app uses `st.navigation`. `tests/console/test_pages.py` reads the sidebar's simulated time from a new session. The real console shows it on every run.
