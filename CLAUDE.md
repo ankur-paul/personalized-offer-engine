@@ -24,7 +24,7 @@ Work is split into tickets in `tickets/`. Before you pick, start or finish a tic
 - Note anything cut, known bugs or workarounds under "Known issues / cuts" so the demo has no surprises.
 - `FEATURES.md` describes what the app does now. A commit that changes what users see or can do updates the matching bullet, and its "Known limits", in the same commit. Edit it in place; it is not a log. On a merge conflict, keep both sides' changes.
 - use "/unslop" skill to write the files in a concise, clear manner while still capturing the complete information. unless the I explicitly ask for a detailed text.
-
+  It only lists the functional features.
 - Put all the questions-answers in a grilling session in the QnA md file, under docs. its mostly for record keeping and maybe later docs generation.
 
 ## Claude API
