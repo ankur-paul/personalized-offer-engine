@@ -54,6 +54,11 @@ Done as built:
   reached @ap_customer1_bot, it sent `/claim POE-ZJNASF`, the Offer Bot replied "Claimed! … valid until 4 Dec,
   10:00." and the database shows `claimed`, `sent_at` and an `offer_claimed` event. This is also the first
   live run of T11's agent path.
+- First Tester run: the card arrived but Not now and Stop did nothing. One write to the scratchpad failed
+  (`disk I/O error`, the log cut off at 4096 bytes; likely the shared `/tmp` quota briefly full). That killed
+  `start`'s output thread for the Offer Bot, whose next log write then blocked on a full pipe for good. Fixed:
+  `start` keeps reading a process's output when writing it fails, `db.connect` closes a connection whose setup
+  fails, and a button tap answered too late still gets its reply.
 
 ## Tests
 - `tests/test_responses.py`: claim/dismiss/stop/restart state changes and reply texts; wrong chat; expired code;

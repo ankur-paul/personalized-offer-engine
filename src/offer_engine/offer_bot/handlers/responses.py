@@ -42,11 +42,16 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     action, code = (match.group(1), match.group(2)) if match.group(1) else (STOP, None)
     reply = respond(context.bot_data["settings"].db_path, action, code, query.message.chat.id)
     log.info("button %s %s from chat %s: %s", action, code or "", query.message.chat.id, reply)
-    await query.answer()
+    # The database already changed, so the reply must go out even if these fail: a tap answered late (say, after
+    # a restart) is "too old", and a second tap may find the buttons already gone.
+    try:
+        await query.answer()
+    except TelegramError as exc:
+        log.info("button tap not answered: %s", exc)
     try:
         # One tap per card; the code still works by text.
         await query.edit_message_reply_markup(reply_markup=None)
-    except TelegramError as exc:  # e.g. a second tap before the first edit landed
+    except TelegramError as exc:
         log.info("buttons not removed: %s", exc)
     await query.message.reply_text(reply)
 
