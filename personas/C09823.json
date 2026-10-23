@@ -1,0 +1,10 @@
+{
+  "customer_id": "C09823",
+  "case": "cart_abandoner",
+  "name": "Kavya Joshi",
+  "card": "Kavya Joshi is a twenty-three-year-old junior accountant in Indore who found the marketplace through a search ad two weeks ago and shops on her iPhone. She visits almost daily, browsing fashion, beauty and groceries, and has placed a few orders without returning anything. Lately she has been comparing basmati rice from several brands, plus dry fruits and mustard oil, and has left many carts unfinished this month. She is a silver loyalty member with some points saved. She received one offer so far, claimed it and used it on an order.",
+  "frozen": true,
+  "drafted_at": "2026-10-23T09:36:31+00:00",
+  "seed": 7,
+  "population": 10000
+}
