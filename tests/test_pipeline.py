@@ -62,10 +62,12 @@ def test_load_customer_state_reads_recent_events_offers_and_chat(world, eligible
     assert state.customer.id == eligible_id
     assert state.events and all(NOW - timedelta(days=180) <= e.at <= NOW for e in state.events)
     assert [e.at for e in state.events] == sorted(e.at for e in state.events)
-    assert len(state.offers) == 1 and state.offers[0].created_at == NOW
+    live = [o for o in state.offers if o.created_at == NOW]
+    assert len(live) == 1 and all(o.created_at < NOW for o in state.offers if o is not live[0])
     assert state.chat is not None and state.chat.chat_id == 4242
     earlier = load_customer_state(world, eligible_id, NOW - timedelta(days=30))
-    assert earlier.offers == () and all(e.at <= NOW - timedelta(days=30) for e in earlier.events)
+    assert all(o.created_at <= NOW - timedelta(days=30) for o in earlier.offers)
+    assert all(e.at <= NOW - timedelta(days=30) for e in earlier.events)
 
 
 def test_load_customer_states_in_bulk(world):
@@ -90,7 +92,7 @@ def test_holdout_customer_gets_no_offer(world, holdout_id):
     assert "holdout" in d.reason
     row = decision_row(world, d.id)
     assert row["validation_ok"] is None and row["offer_id"] is None
-    assert world.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0
+    assert world.execute("SELECT COUNT(*) FROM offers WHERE source = 'live'").fetchone()[0] == 0
 
 
 def test_eligible_customer_gets_a_queued_offer_inside_the_eligible_set(world, eligible_id):

@@ -5,9 +5,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from offer_engine.cli import main
-from offer_engine.db import connect
 from offer_engine.domain import Category, OfferType
-from offer_engine.sim.generate import run
 from offer_engine.sim.ground_truth import (
     PERSUADABLE_LIFT,
     SURE_THING_BASE,
@@ -33,13 +31,9 @@ def gt(base=0.02, max_lift=0.1, k=0.12, offer_type=OfferType.PCT_CATEGORY):
     return GroundTruth("C00001", offer_type, base, max_lift, k)
 
 
-@pytest.fixture(scope="module")
-def world(tmp_path_factory):
-    path = tmp_path_factory.mktemp("gt") / "world.db"
-    conn = connect(path)
-    run(conn, N_CUSTOMERS, months=12, seed=7)
-    yield conn, path
-    conn.close()
+@pytest.fixture
+def world(world_2k):
+    return world_2k
 
 
 @given(bases, st.floats(0.001, 1), ks, depths, depths)

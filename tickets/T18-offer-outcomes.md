@@ -31,6 +31,9 @@ unredeemed Offers expire. M5 (PLAN §2.5, §4.1, §4.3; ADR 0002, 0004; "Assumed
 ## Details
 - Sleeping Dogs: `p_buy` < base, so sending them an Offer lowers their purchases: that's intended.
 - A Customer with an active Offer who doesn't "buy" gets no organic order that day (T17 already skips them).
+- Per docs/QnA.md Q39, the Offer's outcome should decide whether the Customer buys in the 7 days after the send:
+  no organic orders before the Redemption, or for all 7 days if they don't buy. Then live Lift matches Ground
+  Truth's 7-day `p_buy` and T14's history. T14's `past_offers` shows the shape.
 
 ## Tests
 - `tests/sim/test_outcomes.py`: over 20,000 fixture Offers the redemption rate matches mean `p_buy` within ±1
