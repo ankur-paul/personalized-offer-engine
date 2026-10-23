@@ -16,6 +16,7 @@ What has been built, one line per feature, in the order it landed.
 - [T13] Generator at 10k scale: 10k Customers × 12 months generate in about 80 s and `simulate_day` for 10k takes under 1 s, with slow tests for both and for the calibration of a 2,000-Customer run (`time uv run offer-engine generate --customers 10000 --months 12`, `uv run pytest -m slow tests/sim/test_generate_scale.py`)
 - [T14] Random past Offers in the generated history: 30% of abandoned carts, 45-day gaps and Friday broadcasts get a random Offer (none to the Holdout), settled by Ground Truth into Claims, Redemptions with real orders, dismissals and Opt-outs; each Offer decides whether the Customer buys in the 7 days after it (`uv run offer-engine generate --customers 2000 && uv run offer-engine history summary`)
 - [T17] Live world day-step: `clock advance` runs organic events for every Customer hour by hour, delivers history's pending orders, marks Offers to Customers without a chat `sent` at `send_at`, and calls the outcomes, Triggers and Daily Sweep hooks (no-ops until T18–T20). One day for 10k Customers takes about 1.5 s (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1`, `uv run pytest tests/sim/test_day_step.py`)
+- [T03] `offer-engine setup` walks through creating the Offer Bot and 6–8 Customer Bots in BotFather, checks each token with `getMe`, and fills `.env` with mode 0600 (`uv run offer-engine setup`; re-run it to keep or replace values)
 
 ## Known issues / cuts
 
@@ -34,3 +35,4 @@ What has been built, one line per feature, in the order it landed.
 - Past Offers use the stored Ground Truth's Lift with the base at each moment; the stored `base` is still the end-of-history one.
 - In the organic history, a points burn can come before, in time, the same day's delivery points it spends: `simulate_day` credits deliveries at the start of the day. Balances and expiries are right. T14's points replay fixes it for the Customers it rebuilds.
 - `clock advance` on a 10k-Customer world gives about 2,600 sessions and 46 orders a day in early December, lower than T17's example. The history model leaves many Customers lapsed after a year; T15 calibrates it.
+- When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
