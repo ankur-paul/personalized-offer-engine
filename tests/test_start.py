@@ -33,3 +33,32 @@ def test_a_failing_process_stops_the_others():
 def test_start_runs_both_bots():
     modules = [command[-1] for _, command in PROCESSES]
     assert modules == ["offer_engine.offer_bot.app", "offer_engine.customer_sim.app"]
+
+
+class FailingOut(io.StringIO):
+    """An output that accepts `ok` writes, then fails like a full disk."""
+
+    def __init__(self, ok: int):
+        super().__init__()
+        self.ok = ok
+
+    def write(self, text: str) -> int:
+        if self.ok <= 0:
+            raise OSError(122, "Disk quota exceeded")
+        self.ok -= 1
+        return super().write(text)
+
+
+def test_a_failing_output_doesnt_block_the_process():
+    import threading
+
+    # 200 KB of output overflows the pipe buffer, so the child blocks unless its output keeps being read.
+    child = py("import sys\nfor i in range(4000): print('x' * 50)\nsys.exit(0)")
+    out = FailingOut(ok=3)
+    result = []
+    runner = threading.Thread(target=lambda: result.append(run_processes([("a", child)], out=out, poll=0.05)))
+    runner.daemon = True
+    runner.start()
+    runner.join(timeout=20)
+    assert result == [0]
+    assert out.getvalue().startswith("[a] " + "x" * 50)

@@ -19,6 +19,7 @@ What has been built, one line per feature, in the order it landed.
 - [T03] `offer-engine setup` walks through creating the Offer Bot and 6–8 Customer Bots in BotFather, checks each token with `getMe`, and fills `.env` with mode 0600 (`uv run offer-engine setup`; re-run it to keep or replace values)
 - [T04] Offer Card PNG drawn from an Offer; Offer Bot sends a demo card on `/start` and acknowledges `/claim CODE`; first Customer Bot claims cards it receives; `offer-engine start` runs both bots (`uv run offer-engine start`, then `/start` to the Offer Bot; `uv run offer-engine demo-send` for the Customer Bot)
 - [T19] Event Triggers: each simulated hour, an abandoned cart, points expiring within 7 days, 45 days since the last order and a first delivery each run the decision pipeline once per underlying event (`trigger_log`), and `clock advance` counts them as `decisions.<trigger>`. `trigger cart-abandoned` uses the same de-duplication (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1 && uv run offer-engine decisions --last 10`)
+- [T10] Offer delivery and Customer responses: the Offer Bot sends due queued Offers to chat-attached Customers every 5 s as Offer Cards with Claim / Not now / Stop; buttons and `/claim`, `/notnow`, `/stop` text commands update Offers, opt-outs and events, and `/start` opts back in; `chats link`/`chats list` attach Customer Bots; `outbox` messages are sent too; `demo-send` and the hard-coded demo card are gone (`uv run offer-engine chats link C00042 --bot @<customer bot>`, `uv run offer-engine start`, then `uv run offer-engine trigger cart-abandoned C00042`)
 
 ## Known issues / cuts
 
@@ -31,7 +32,7 @@ What has been built, one line per feature, in the order it landed.
 - The rules chooser values every category the Customer saw in the last 90 days and picks the most valuable one. A Customer who abandoned groceries can get a fashion Offer. Its Lift priors in `choosers/priors.py` are guesses until T16.
 - The budget counts a Redemption's actual cost from the `order` event linked to the Offer by `offer_id`. Without that event it counts the worst-case cost, so T18 must link the order.
 - `uv run pytest` takes about 28 s. The Ground Truth tests build a 2,000-Customer world for calibration target 9, about 18 s of that.
-- T11's live test (`uv run pytest -m live tests/test_agent_live.py`) hasn't run: it needs `ANTHROPIC_API_KEY` and `OFFER_AGENT_MODEL` in `.env`. Until T10 adds `chats link`, link a Customer to a chat by inserting a `chats` row.
+- T11's live test (`uv run pytest -m live tests/test_agent_live.py`) hasn't run: it needs `ANTHROPIC_API_KEY` and `OFFER_AGENT_MODEL` in `.env`.
 - The agent chooser doesn't use forced `tool_choice` (current models reject it with a 400). A reply without the tool call falls back to the rules chooser.
 - Past Offers miss calibration target 4: on 2,000 Customers, 16% of targeted sends and 4.5% of broadcasts are redeemed (targets 1.5–5% and 0.1–1%). Heavy grocery buyers cause most abandoned carts and buy almost every week, and anyone who buys while holding an Offer redeems it. T15 tunes this.
 - Past Offers use the stored Ground Truth's Lift with the base at each moment; the stored `base` is still the end-of-history one.
@@ -41,3 +42,5 @@ What has been built, one line per feature, in the order it landed.
 - `tests/sim/test_day_step.py` stubs the Triggers hook so its checks on the world's events and Offers stay exact. `tests/test_triggers.py` and `tests/sim/test_triggers_world.py` test the Triggers.
 - When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.
+- A send Telegram refuses (e.g. a chat that blocked the Offer Bot) stays queued and logs a warning every 5 s until the Offer expires. Queued Offers past expiry stay `queued`; nothing expires them yet.
+- `chats link` takes a Customer Bot's chat ID from the number before the colon in its bot token, so it makes no Telegram call. It would break if Telegram changed the token format.

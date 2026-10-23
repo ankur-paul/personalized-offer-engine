@@ -1,5 +1,5 @@
-"""The M1 demo: `/start` links a Tester to demo Customer C00001 and sends a hard-coded Offer Card; `/claim CODE`
-is acknowledged. T10 and T25 replace it with real delivery and Tester flows."""
+"""The M1 demo `/start`: links a Tester to demo Customer C00001 and turns their Offers back on. From a Customer
+Bot it only turns Offers back on. T25 replaces it with real Tester flows."""
 
 from __future__ import annotations
 
@@ -7,44 +7,23 @@ import logging
 import sqlite3
 from datetime import datetime, timedelta
 
-from telegram import Bot, Message, Update
+from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from offer_engine import clock
 from offer_engine.db import connect
-from offer_engine.domain import ChatKind, Offer, OfferSource, OfferStatus, OfferType, RuleSet
-from offer_engine.offer_card import render_offer_card
+from offer_engine.domain import ChatKind
+from offer_engine.offer_bot import responses
 
 log = logging.getLogger(__name__)
 
 DEMO_CUSTOMER_ID = "C00001"
-DEMO_CODE = "POE-DEMO01"
-DEMO_CATALOG_NAMES = {"fashion": "Fashion"}
-DEMO_CAPTION = f"Still thinking about those fashion picks? This one's for you.\nCode: {DEMO_CODE}"
-# Text, not a command filter: whether a bot's private message gets a bot_command entity is undocumented.
-CLAIM_PATTERN = r"(?i)^/claim(?:@\w+)?(?:\s+(\S+))?\s*$"
-
-
-def demo_offer(now: datetime) -> Offer:
-    """15% off fashion, ₹300 cap, valid for `offer_validity_days` from `now`."""
-    return Offer(
-        id=None,
-        code=DEMO_CODE,
-        customer_id=DEMO_CUSTOMER_ID,
-        offer_type=OfferType.PCT_CATEGORY,
-        category="fashion",
-        params={"pct": 15.0, "cap": 300.0},
-        featured_product_ids=(),
-        created_at=now,
-        send_at=now,
-        expires_at=now + timedelta(days=RuleSet().offer_validity_days),
-        caption=DEMO_CAPTION,
-        rule_version=0,
-        worst_case_cost=300.0,
-        expected_cost=300.0,
-        status=OfferStatus.SENT,
-        source=OfferSource.LIVE,
-    )
+LINKED = (
+    f"You're demo Customer {DEMO_CUSTOMER_ID}. Offers for {DEMO_CUSTOMER_ID} arrive here as Offer Cards; "
+    "tap Claim, Not now or Stop."
+)
+# Customer Bots send `/start` as text, which may not carry a bot_command entity.
+START_PATTERN = r"(?i)^/start(?:@\w+)?\s*$"
 
 
 def link_tester(conn: sqlite3.Connection, chat_id: int, now: datetime) -> None:
@@ -62,45 +41,27 @@ def link_tester(conn: sqlite3.Connection, chat_id: int, now: datetime) -> None:
     conn.commit()
 
 
-def claim_reply(code: str | None) -> str:
-    if not code:
-        return f"Send /claim followed by the code, e.g. /claim {DEMO_CODE}"
-    if code.upper() != DEMO_CODE:
-        return f"No Offer has the code {code}."
-    return f"Claimed {DEMO_CODE}. Show this code at checkout."
-
-
-async def send_demo_card(bot: Bot, chat_id: int | str, now: datetime) -> Message:
-    offer = demo_offer(now)
-    return await bot.send_photo(
-        chat_id, photo=render_offer_card(offer, DEMO_CATALOG_NAMES), caption=offer.caption
-    )
+def start(conn: sqlite3.Connection, chat_id: int, is_bot: bool) -> str:
+    """Link a Tester's chat to the demo Customer, then opt the chat's Customers back in. The reply text."""
+    if not is_bot:
+        link_tester(conn, chat_id, clock.now(conn))
+        log.info("Tester chat %s linked to %s", chat_id, DEMO_CUSTOMER_ID)
+    reply = responses.restart(conn, chat_id)
+    if is_bot or reply == responses.NOT_LINKED:
+        return reply
+    return LINKED if reply == responses.ALREADY_ON else f"{reply} {LINKED}"
 
 
 async def on_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    if user is None or user.is_bot:
-        return
     conn = connect(context.bot_data["settings"].db_path)
     try:
-        now = clock.now(conn)
-        link_tester(conn, update.effective_chat.id, now)
+        reply = start(conn, update.effective_chat.id, bool(user and user.is_bot))
     finally:
         conn.close()
-    log.info("Tester chat %s linked to %s", update.effective_chat.id, DEMO_CUSTOMER_ID)
-    await send_demo_card(context.bot, update.effective_chat.id, now)
-
-
-async def on_claim(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    code = context.matches[0].group(1)
-    user = update.effective_user
-    sender = f"@{user.username}" if user and user.username else str(update.effective_chat.id)
-    kind = "bot" if user and user.is_bot else "tester"
-    if code and code.upper() == DEMO_CODE:
-        log.info("Claim %s from %s %s", DEMO_CODE, kind, sender)
-    await update.effective_message.reply_text(claim_reply(code))
+    await update.effective_message.reply_text(reply)
 
 
 def register(app: Application) -> None:
     app.add_handler(CommandHandler("start", on_start))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(CLAIM_PATTERN), on_claim))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(START_PATTERN), on_start))

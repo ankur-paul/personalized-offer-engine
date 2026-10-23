@@ -207,10 +207,10 @@ def release(conn: sqlite3.Connection, before: datetime, report: DayReport) -> li
 
 
 def mark_sent(conn: sqlite3.Connection, now: datetime) -> int:
-    """Queued Offers to Customers without a chat are sent once `send_at` has passed. Chat ones wait for the Offer
-    Bot."""
+    """Queued Offers to Customers without a chat are sent at `send_at` once it has passed. Chat ones wait for the
+    Offer Bot."""
     cursor = conn.execute(
-        "UPDATE offers SET status = ? WHERE status = ? AND send_at <= ? "
+        "UPDATE offers SET status = ?, sent_at = send_at WHERE status = ? AND send_at <= ? "
         "AND customer_id NOT IN (SELECT customer_id FROM chats)",
         (OfferStatus.SENT, OfferStatus.QUEUED, _iso(now)),
     )

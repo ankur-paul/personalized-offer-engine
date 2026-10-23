@@ -369,10 +369,11 @@ def _amount(param: str, value: float) -> str:
 
 
 def _recent(state: CustomerState, now: datetime, kinds: tuple[str, ...] | None):
-    """The Customer's events of the last 90 days, newest first."""
+    """The Customer's events of the last 90 days, newest first. Events at the same time keep their recorded order,
+    reversed, so a Stop then `/start` within one simulated minute shows the opt-in as the latest."""
     since = now - timedelta(days=RECENT_CATEGORY_DAYS)
     events = [e for e in state.events if since <= e.at <= now and (kinds is None or e.kind in kinds)]
-    return sorted(events, key=lambda e: e.at, reverse=True)
+    return sorted(events, key=lambda e: e.at)[::-1]
 
 
 def _time(at: datetime) -> str:
