@@ -204,6 +204,40 @@ def test_queued_offers_reserve_budget(world, eligible_id):
     assert budget_state(world, RuleSet(), NOW).reserved == pytest.approx(worst)
 
 
+def test_decide_many_matches_decide_one_by_one(world, world_template, tmp_path):
+    """A budget that runs out mid-way: `decide_many` must reserve each Offer as `decide`'s fresh query does."""
+    import shutil
+
+    from offer_engine.db import connect
+
+    shutil.copy(world_template, tmp_path / "other.db")
+    other = connect(tmp_path / "other.db")
+    order = list(reversed(ids(world)))
+    for conn in (world, other):
+        save_rules(conn, RuleSet(weekly_budget=400.0), author="test")
+    many = list(pipeline.decide_many(world, [*order, "NOPE"], TriggerKind.DAILY_SWEEP, NOW))
+    single = [pipeline.decide(other, cid, TriggerKind.DAILY_SWEEP, NOW) for cid in order]
+
+    def summary(conn, decisions):
+        offers = [offer_row(conn, d.offer_id) if d.offer_id else None for d in decisions]
+        return [
+            (
+                d.customer_id,
+                d.reason,
+                d.binding_rule,
+                o and (o["offer_type"], o["params"], o["worst_case_cost"]),
+            )
+            for d, o in zip(decisions, offers, strict=True)
+        ]
+
+    assert summary(world, many) == summary(other, single)
+    reserved = budget_state(world, RuleSet(), NOW).reserved
+    assert reserved == budget_state(other, RuleSet(), NOW).reserved
+    paid = [s[3][2] for s in summary(world, many) if s[3] and s[3][2] > 0]
+    assert paid and 400.0 - reserved < min(paid)  # the budget ran out part-way
+    other.close()
+
+
 def test_decision_records_the_current_rule_version(world, eligible_id):
     version = save_rules(world, RuleSet(margin_floor_pct=6.0), author="test")
     d = pipeline.decide(world, eligible_id, CART, NOW)

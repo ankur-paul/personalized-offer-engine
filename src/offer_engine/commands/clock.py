@@ -67,6 +67,9 @@ COUNT_ORDER = (
     "points_burned",
     "points_expired",
     "offers_sent",
+    "sweep.offer",
+    "sweep.no_offer",
+    "sweep.skipped",
 )
 PLURALS = {"session": "sessions", "product_view": "product_views", "order": "orders", "return": "returns"}
 

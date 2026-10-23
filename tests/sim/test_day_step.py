@@ -29,6 +29,7 @@ def template(tmp_path_factory):
 def no_decisions(monkeypatch):
     """These tests are about the world; the hooks that ask the pipeline have their own tests."""
     monkeypatch.setattr(triggers, "on_hour", lambda conn, now, new_events, report: None)
+    monkeypatch.setattr(daily_sweep, "on_hour", lambda conn, now, report: None)
 
 
 @pytest.fixture

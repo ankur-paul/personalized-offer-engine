@@ -19,6 +19,7 @@ What has been built, one line per feature, in the order it landed.
 - [T03] `offer-engine setup` walks through creating the Offer Bot and 6–8 Customer Bots in BotFather, checks each token with `getMe`, and fills `.env` with mode 0600 (`uv run offer-engine setup`; re-run it to keep or replace values)
 - [T04] Offer Card PNG drawn from an Offer; Offer Bot sends a demo card on `/start` and acknowledges `/claim CODE`; first Customer Bot claims cards it receives; `offer-engine start` runs both bots (`uv run offer-engine start`, then `/start` to the Offer Bot; `uv run offer-engine demo-send` for the Customer Bot)
 - [T19] Event Triggers: each simulated hour, an abandoned cart, points expiring within 7 days, 45 days since the last order and a first delivery each run the decision pipeline once per underlying event (`trigger_log`), and `clock advance` counts them as `decisions.<trigger>`. `trigger cart-abandoned` uses the same de-duplication (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1 && uv run offer-engine decisions --last 10`)
+- [T20] Daily Sweep: at 10:00 each simulated day the pipeline decides for every Customer not decided in the last 24 simulated hours, chat-attached ones first and the rest in a date-seeded shuffle. `pipeline.decide_many` loads the Rules, catalog and budget once, so 10k Customers take about 30 s. `clock advance` prints `sweep.offer`, `sweep.no_offer`, `sweep.skipped` and `sweep.binding.<rule>` (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1`)
 
 ## Known issues / cuts
 
@@ -41,3 +42,5 @@ What has been built, one line per feature, in the order it landed.
 - `tests/sim/test_day_step.py` stubs the Triggers hook so its checks on the world's events and Offers stay exact. `tests/test_triggers.py` and `tests/sim/test_triggers_world.py` test the Triggers.
 - When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.
+- The first Daily Sweep on 10k Customers queues about 8,400 Offers, 7,970 of them Nudges. A Nudge costs ₹0, so the rules chooser always finds it worth sending. The frequency cap stops repeats on later days. T16's Estimated Lift or a Rule on Nudges would change this.
+- `tests/sim/test_day_step.py` stubs the Daily Sweep hook too, so its 10k-Customer day still measures the world alone (about 5 s). `tests/test_daily_sweep.py` tests the sweep, with a slow 10k test (`uv run pytest -m slow tests/test_daily_sweep.py`).
