@@ -111,3 +111,24 @@ def test_advance_skips_while_another_step_runs(world, tmp_path):
     finally:
         data.day_step.advance = real_advance
     assert clock.now(world) == datetime(2026, 12, 1, 1)
+
+
+def test_rule_history_lists_what_each_version_changed(conn):
+    from offer_engine import rules_store
+    from offer_engine.domain import RuleSet
+
+    rules_store.save_rules(conn, RuleSet(margin_floor_pct=10.0), "Asha", "protect margins")
+    rules_store.save_rules(conn, RuleSet(margin_floor_pct=10.0, holdout_pct=20.0), "Ravi", "bigger Holdout")
+    rules_store.revert(conn, 1, "Asha")
+    rules_store.save_rules(conn, RuleSet(margin_floor_pct=10.0), "Asha", "no-op")
+    history = data.rule_history(conn)
+    assert list(history.columns) == data.HISTORY_COLUMNS
+    assert history["version"].tolist() == [4, 3, 2, 1, 0]
+    assert history["changed"].tolist() == ["(none)", "holdout_pct", "holdout_pct", "margin_floor_pct", ""]
+    assert history["note"].tolist() == [
+        "no-op",
+        "revert to v1",
+        "bigger Holdout",
+        "protect margins",
+        "defaults",
+    ]
