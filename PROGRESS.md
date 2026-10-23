@@ -12,6 +12,7 @@ What has been built, one line per feature, in the order it landed.
 - [T08] Caption Check: rejects captions with numbers or deadlines that differ from the Offer, invented urgency, unoffered promises, over 280 characters or blank; 65 bad and 20 good captions in `tests/data/captions.jsonl` (`uv run offer-engine caption-check "Hurry, 30% off tonight only!" --offer-type pct_category --param pct=15 --param cap=300 --category fashion`)
 - [T09] Decision pipeline: `decide` runs the Rules, the rules chooser, Validation and the Fallback, logs the Decision and queues the Offer. Also the Customer loader, the weekly budget, `trigger cart-abandoned`, `decisions` and `eligible --customer` (`uv run offer-engine generate --customers 200 && uv run offer-engine trigger cart-abandoned C00042 && uv run offer-engine decisions --last 5`)
 - [T12] Ground Truth: `generate` stores a hidden response formula per Customer and Offer Type in `sim_ground_truth` and a Response Class in `sim_response_class`; shares land in calibration target 9 (`uv run offer-engine generate --customers 2000 && uv run offer-engine ground-truth summary`)
+- [T11] Agent chooser: Claude picks one option or No Offer for chat-attached Customers and writes the caption and reason; Validation now runs the Caption Check, and an invalid pick or API failure falls back to the rules chooser with the agent's raw answer stored on the Decision (`uv run offer-engine generate --customers 200`, add a `chats` row for C00042, then `ANTHROPIC_API_KEY=bad uv run offer-engine trigger cart-abandoned C00042` shows `chooser=fallback`)
 
 ## Known issues / cuts
 
@@ -23,5 +24,6 @@ What has been built, one line per feature, in the order it landed.
 - The Caption Check misses a caption that names the wrong category ("15% off electronics" on a fashion Offer); the ticket has no reason code for it. It also lets "today" and "this week" through unless worded as a deadline ("today only", "this weekend"). Add rows to the tables in `caption_check.py` to tighten it.
 - The rules chooser values every category the Customer saw in the last 90 days and picks the most valuable one. A Customer who abandoned groceries can get a fashion Offer. Its Lift priors in `choosers/priors.py` are guesses until T16.
 - The budget counts a Redemption's actual cost from the `order` event linked to the Offer by `offer_id`. Without that event it counts the worst-case cost, so T18 must link the order.
-- Validation skips the Caption Check until T11 turns it on. The rules chooser's captions already pass it (property test in `tests/test_rules_chooser.py`).
 - `uv run pytest` takes about 28 s. The Ground Truth tests build a 2,000-Customer world for calibration target 9, about 18 s of that.
+- T11's live test (`uv run pytest -m live tests/test_agent_live.py`) hasn't run: it needs `ANTHROPIC_API_KEY` and `OFFER_AGENT_MODEL` in `.env`. Until T10 adds `chats link`, link a Customer to a chat by inserting a `chats` row.
+- The agent chooser doesn't use forced `tool_choice` (current models reject it with a 400). A reply without the tool call falls back to the rules chooser.

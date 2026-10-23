@@ -1,5 +1,5 @@
 # T11 — Agent chooser: Claude picks from the Eligible Set and writes the caption
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T08, T09 · **Branch:** t11-agent-chooser
 
 ## Goal
@@ -31,6 +31,30 @@ re-checks it and the rules chooser takes over on failure or outage. M3 (PLAN §3
   `OFFER_AGENT_MODEL` in `.env`, never hard-code (CLAUDE.md › Claude API).
 - The agent never sees Ground Truth or `sim_*` data (ADR 0002); the boundary test covers `choosers`.
 - Featured products must come from the Customer's own recent events (Validation enforces).
+- Done as built: `tool_choice` is `auto` with `strict: true` on the tool, not forced. Forcing a tool returns a 400 on
+  Claude Opus 5.5, Sonnet 5.5 and Fable 5.1. A reply without a `propose_offer` call, a refusal or a `max_tokens`
+  stop raises `AgentError`, so the rules chooser takes over.
+- Done as built: `params` lists all five parameter names (`pct`, `cap`, `amount`, `min_basket`, `multiplier`) and
+  the agent sends null for the ones its option doesn't take, because strict schemas need fixed properties. The
+  chooser drops the nulls. The schema has no length limits (strict mode doesn't support them), so the Caption
+  Check catches long captions and the chooser cuts the reason to 200 characters.
+- Done as built: only `agent_output` is new in `t11_agent_columns.sql`; `validation_failures` was already in
+  `t02_core.sql`.
+- Done as built: `make_agent_chooser` returns an `AgentChooser` whose `last_output` holds the raw tool input. The
+  pipeline reads it with `getattr` and stores it on the Decision, including when the proposal failed.
+- Done as built: `default_chooser(state, trigger)` also takes the Trigger, so the prompt can name it. The client
+  has `max_retries=0` and each call a 20 s timeout, effort `low` and `cache_control` on the system prompt. With a
+  key but no `OFFER_AGENT_MODEL`, the Decision falls back with `chooser_error: RuntimeError: OFFER_AGENT_MODEL is
+  not set in .env`.
+- Done as built: the prompt shows the Trigger and send time, the Customer's profile, past Offers, event counts
+  and the latest 20 events other than sessions and views from the last 90 days, up to 12 recent products (the
+  only allowed featured products), each category's margin and basket, and the Eligible Set with ranges, Binding
+  Rules, worst-case cost and Estimated Lift (or the prior's guess until T16).
+- Done as built: `trigger` and `decisions` print the agent's rejected proposal on a Fallback Decision. An autouse
+  fixture in `tests/conftest.py` keeps the API key from the pipeline in every test not marked `live`.
+- Done as built: the live test and the `chooser=agent` half of the Check were not run, because this environment
+  has no `ANTHROPIC_API_KEY`. The `ANTHROPIC_API_KEY=bad` half gives `chooser=fallback` with
+  `chooser_error: AuthenticationError: … 401`. `chats link` comes with T10; until then, add a `chats` row by hand.
 
 ## Tests
 - `tests/test_agent_chooser.py` with a fake client returning canned tool inputs: valid → `chooser=agent`; param out
@@ -45,8 +69,8 @@ re-checks it and the rules chooser takes over on failure or outage. M3 (PLAN §3
 shows `chooser=fallback`. `uv run pytest -m live tests/test_agent_live.py` passes with a real key.
 
 ## Done when
-- [ ] Chat-attached Customers are decided by the agent; others by the rules chooser
-- [ ] Caption Check runs inside Validation
-- [ ] Invalid proposals and API failures fall back, with failures stored on the Decision
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T11: agent chooser with Caption Check and Fallback`
+- [x] Chat-attached Customers are decided by the agent; others by the rules chooser
+- [x] Caption Check runs inside Validation
+- [x] Invalid proposals and API failures fall back, with failures stored on the Decision
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T11: agent chooser with Caption Check and Fallback`

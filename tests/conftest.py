@@ -17,6 +17,20 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip)
 
 
+@pytest.fixture(autouse=True)
+def no_agent_calls(request, monkeypatch):
+    """The pipeline never calls the Claude API in tests, whatever `.env` holds, unless the test is `live`."""
+    if "live" in request.keywords:
+        return
+    from dataclasses import replace
+
+    from offer_engine import config, pipeline
+
+    monkeypatch.setattr(
+        pipeline, "load_settings", lambda: replace(config.load_settings(), anthropic_api_key=None)
+    )
+
+
 @pytest.fixture
 def clean_env(monkeypatch, tmp_path):
     """No offer-engine keys in the process environment and a cwd with no `.env`."""

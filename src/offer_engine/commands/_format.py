@@ -64,6 +64,8 @@ def decision_details(row: sqlite3.Row) -> list[str]:
         lines.append(f"caption: {row['caption']}")
     if row["reason"]:
         lines.append(f"reason: {row['reason']}")
+    if row["chooser"] == "fallback" and row["agent_output"]:
+        lines.append(f"agent's rejected proposal: {row['agent_output']}")
     failures = json.loads(row["validation_failures"])
     if failures:
         lines.append("Validation failures:")

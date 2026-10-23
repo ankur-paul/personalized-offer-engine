@@ -1,11 +1,12 @@
 """The decision pipeline (ADR 0001, PLAN §3.5): Rules → chooser → Validation → Fallback → Decision log.
 
-`default_chooser` and `default_lift_estimator` are separate on purpose: T11 changes only the first, T16 only the
+`default_chooser` and `default_lift_estimator` are separate on purpose: T11 changed only the first, T16 only the
 second.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import secrets
 import sqlite3
@@ -14,8 +15,11 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime, timedelta
 
+from offer_engine import caption_check
 from offer_engine.budget import budget_state
 from offer_engine.choosers import rules_chooser
+from offer_engine.choosers.agent_chooser import make_agent_chooser
+from offer_engine.config import load_settings
 from offer_engine.customers import load_customer_state
 from offer_engine.db import load_catalog
 from offer_engine.domain import (
@@ -51,8 +55,26 @@ CODE_PREFIX = "POE-"
 CODE_ALPHABET = string.ascii_uppercase + string.digits
 
 
-def default_chooser(state: CustomerState) -> ChooserFn:
-    return rules_chooser.choose
+def default_chooser(state: CustomerState, trigger: TriggerKind | None = None) -> ChooserFn:
+    """The agent for chat-attached Customers when `ANTHROPIC_API_KEY` is set, else the rules chooser."""
+    settings = load_settings()
+    if state.chat is None or not settings.anthropic_api_key:
+        return rules_chooser.choose
+    if not settings.offer_agent_model:
+        return _missing_model
+    return make_agent_chooser(_client(settings.anthropic_api_key), settings.offer_agent_model, trigger)
+
+
+@functools.cache
+def _client(api_key: str):
+    import anthropic
+
+    # No retries: a failed call falls back to the rules chooser within the agent's timeout.
+    return anthropic.Anthropic(api_key=api_key, max_retries=0)
+
+
+def _missing_model(*args) -> Proposal:
+    raise RuntimeError("OFFER_AGENT_MODEL is not set in .env")
 
 
 def default_lift_estimator() -> LiftEstimator:
@@ -98,10 +120,11 @@ def decide(
             conn, decision(Chooser.RULES, no_offer, es.binding_rule), None, es, state, catalog, rules
         )
 
-    primary = chooser or default_chooser(state)
+    primary = chooser or default_chooser(state, trigger)
     is_rules = primary is rules_chooser.choose
     chooser_used = Chooser.RULES if is_rules else Chooser.AGENT
     proposal, rejected = _attempt(primary, es, state, catalog, rules, budget, now)
+    agent_output = getattr(primary, "last_output", None)
     failures: list[str] = []
     if rejected and is_rules:
         failures, rejected = rejected, []
@@ -113,7 +136,7 @@ def decide(
         result = ValidationResult(False, tuple(rejected + failures))
         no_offer = Proposal(None, reason="No Offer: the rules chooser's proposal failed Validation")
         failed = decision(chooser_used, no_offer, FALLBACK_FAILED, result)
-        return _write(conn, failed, None, es, state, catalog, rules)
+        return _write(conn, failed, None, es, state, catalog, rules, agent_output)
 
     validation = ValidationResult(True, tuple(rejected)) if proposal.offer_type or rejected else None
     binding = None
@@ -121,7 +144,14 @@ def decide(
         option = _option(es, proposal)
         binding = option.binding_rules.get(MAIN_PARAM.get(proposal.offer_type, ""))
     return _write(
-        conn, decision(chooser_used, proposal, binding, validation), proposal, es, state, catalog, rules
+        conn,
+        decision(chooser_used, proposal, binding, validation),
+        proposal,
+        es,
+        state,
+        catalog,
+        rules,
+        agent_output,
     )
 
 
@@ -131,7 +161,8 @@ def _attempt(choose: ChooserFn, es, state, catalog, rules, budget, now) -> tuple
         proposal = choose(es, state, catalog, rules)
     except Exception as exc:  # noqa: BLE001 — the agent may be down; any error falls back
         return None, [f"chooser_error: {type(exc).__name__}: {exc}"]
-    return proposal, list(validate(proposal, state, rules, budget, now, catalog).failures)
+    checker = functools.partial(caption_check.check, validity_days=rules.offer_validity_days)
+    return proposal, list(validate(proposal, state, rules, budget, now, catalog, checker).failures)
 
 
 def _option(es: EligibleSet, proposal: Proposal) -> EligibleOption:
@@ -148,8 +179,9 @@ def _write(
     state: CustomerState,
     catalog: Catalog,
     rules: RuleSet,
+    agent_output: dict | None = None,
 ) -> Decision:
-    """Write the Offer (if any) and the Decision in one transaction."""
+    """Write the Offer (if any) and the Decision, with the agent's raw tool input if any, in one transaction."""
     offer_id = None
     with conn:
         if proposal is not None and proposal.offer_type is not None:
@@ -157,7 +189,7 @@ def _write(
         v = decision.validation
         cur = conn.execute(
             "INSERT INTO decisions (customer_id, at, trigger, chooser, offer_id, reason, binding_rule, rule_version,"
-            " validation_ok, validation_failures) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " validation_ok, validation_failures, agent_output) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 decision.customer_id,
                 _iso(decision.at),
@@ -169,6 +201,7 @@ def _write(
                 decision.rule_version,
                 None if v is None else int(v.ok),
                 json.dumps(list(v.failures) if v else []),
+                None if agent_output is None else json.dumps(agent_output, ensure_ascii=False),
             ),
         )
     return replace(decision, id=cur.lastrowid, offer_id=offer_id)
