@@ -1,5 +1,5 @@
 # T23 — Persona Cards for the showcase Customers
-**Status:** BLOCKED (needs human: review Persona Cards)
+**Status:** DONE
 **Prereqs:** T13, T14 · **Branch:** t23-persona-cards
 
 ## Goal
@@ -52,6 +52,6 @@ review `uv run offer-engine personas freeze` → files committed with `frozen: t
 
 ## Done when
 - [x] One showcase Customer per case, including a Sure Thing and a Holdout Customer
-- [ ] Persona Cards drafted from observable data only, reviewed by the user, frozen and committed
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T23: Persona Cards for showcase Customers`
+- [x] Persona Cards drafted from observable data only, reviewed by the user, frozen and committed
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T23: Persona Cards for showcase Customers`

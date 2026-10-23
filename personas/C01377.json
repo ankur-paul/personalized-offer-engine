@@ -3,7 +3,7 @@
   "case": "at_risk_high_value",
   "name": "Rekha Iyer",
   "card": "Rekha Iyer is a fifty-four-year-old school librarian in Chennai who runs a busy household and shops on her Android phone. A platinum member of long standing, she mostly buys kitchen staples like mustard oil, toor dal, ghee, poha and masala chai, plus the odd home or fashion item. She fills carts often and leaves many unfinished. Lately she has visited rarely and has not ordered in months, with a few loyalty points close to expiring. She has received many offers, claimed most and used the majority of them, and has never dismissed any.",
-  "frozen": false,
+  "frozen": true,
   "drafted_at": "2026-10-23T09:36:07+00:00",
   "seed": 7,
   "population": 10000
