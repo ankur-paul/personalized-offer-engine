@@ -1,5 +1,5 @@
 # T22 — Console: Rule forms, versions, revert, budget mode, emergency withdraw
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T10, T21 · **Branch:** t22-console-rules
 
 ## Goal
@@ -26,6 +26,8 @@ Reserved Budget between worst-case and expected cost, and withdraws all outstand
 - Rule changes apply to new Decisions only; Offers keep the `rule_version` they passed (already stored by T09).
 - Changing `holdout_pct` changes who is in the Holdout: show a warning on that field.
 - Leave space under the form for T28's **Preview impact** button.
+- Done as built: labels with several blanks cover several fields ("Send at most __ offers per __ days"); each blank's input is labelled with the sentence, the other blanks filled with their saved values. `max_pct_by_category` and `max_pct_by_loyalty_tier` get one input per category or tier, blank for no cap. Version 0 (the defaults) is listed so it can be reverted to. Revert needs a name but no note, since `rules_store.revert` writes "revert to vN". Save also refuses a send window that doesn't start before it ends and saves nothing when nothing changed.
+- Done as built: `withdraw_outstanding` skips past Offers (`source = 'past'`) and Offers past `expires_at`, which the day-step expires. It notifies only `sent` and `claimed` Offers' chats, since a queued card was never sent. "Logs who/when" is a `withdrawals` table (`t22_withdrawals.sql`) shown under the button. `count_outstanding` gives the count the page shows. `console_env` moved to `tests/console/conftest.py` to share it with the new page tests.
 
 ## Tests
 - `tests/test_withdraw.py`: statuses changed, outbox rows only for chat-attached Customers, redeemed/expired
@@ -40,9 +42,9 @@ rule version 1; **Revert** to 0 → version 2; tick confirm and **Withdraw** →
 Testers get the notice.
 
 ## Done when
-- [ ] Every Rule is editable with a plain-English label and versioned with who/when
-- [ ] One-click revert works
-- [ ] Budget mode toggle with overspend warning
-- [ ] Emergency withdraw marks Offers withdrawn and notifies chats
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T22: console Rule forms, versions and emergency withdraw`
+- [x] Every Rule is editable with a plain-English label and versioned with who/when
+- [x] One-click revert works
+- [x] Budget mode toggle with overspend warning
+- [x] Emergency withdraw marks Offers withdrawn and notifies chats
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T22: console Rule forms, versions and emergency withdraw`

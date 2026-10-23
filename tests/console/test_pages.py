@@ -1,23 +1,12 @@
 from datetime import datetime
 from pathlib import Path
 
-import pytest
 from streamlit.testing.v1 import AppTest
 
 from offer_engine import clock
-from offer_engine.config import ENV_KEYS
 
 APP = str(Path(__file__).resolve().parents[2] / "console" / "app.py")
 TIMEOUT = 60
-
-
-@pytest.fixture
-def console_env(monkeypatch, tmp_path):
-    """The console reads `DB_PATH` from the environment; no `.env` and no password."""
-    for key in ENV_KEYS:
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("DB_PATH", str(tmp_path / "world.db"))
 
 
 def run_page(page: str | None = None) -> AppTest:

@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+from offer_engine.config import ENV_KEYS
+
 
 def add_decision(
     conn,
@@ -58,3 +60,12 @@ def decision_db(world):
         agent_output='{"option": "pct_category"}',
     )
     return world
+
+
+@pytest.fixture
+def console_env(monkeypatch, tmp_path):
+    """The console reads `DB_PATH` from the environment; no `.env` and no password."""
+    for key in ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "world.db"))

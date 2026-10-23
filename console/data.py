@@ -1,5 +1,6 @@
 """What the console pages read and do, kept apart from Streamlit so it can be tested: the database connection,
-Decision log queries returning DataFrames, and the clock step behind the Clock page's buttons."""
+Decision log queries returning DataFrames, the clock step behind the Clock page's buttons, and the Rules page's
+version history and budget figures."""
 
 from __future__ import annotations
 
@@ -7,16 +8,18 @@ import json
 import sqlite3
 import threading
 from collections import Counter
+from dataclasses import fields, replace
 from datetime import datetime
 
 import pandas as pd
 
-from offer_engine import clock
+from offer_engine import clock, rules_store
+from offer_engine.budget import budget_state
 from offer_engine.commands._format import DECISION_QUERY, offer_terms, validation_text
 from offer_engine.commands.clock import COUNT_ORDER
 from offer_engine.config import load_settings
 from offer_engine.db import connect
-from offer_engine.domain import Chooser, TriggerKind
+from offer_engine.domain import BudgetMode, Chooser, RuleSet, TriggerKind
 from offer_engine.sim.world import day_step
 from offer_engine.sim.world.day_step import DayReport
 
@@ -41,6 +44,8 @@ DECISION_COLUMNS = [
     "caption",
     "agent_output",
 ]
+
+HISTORY_COLUMNS = ["version", "who", "when", "saved", "note", "changed"]
 
 # One step at a time for the whole console process, so auto mode and a button press (or two open tabs) never
 # run the day-step at once.
@@ -125,3 +130,37 @@ def _decision_row(row: sqlite3.Row) -> dict:
         "caption": row["caption"] or "",
         "agent_output": row["agent_output"] or "",
     }
+
+
+def changed_fields(old: RuleSet, new: RuleSet) -> list[str]:
+    return [f.name for f in fields(RuleSet) if getattr(old, f.name) != getattr(new, f.name)]
+
+
+def rule_history(conn: sqlite3.Connection) -> pd.DataFrame:
+    """Rule versions newest first, ending with version 0 (the defaults), each with the fields it changed from the
+    version before it. `when` is simulated time, `saved` wall-clock UTC."""
+    rows = [{"version": 0, "who": "", "when": "", "saved": "", "note": "defaults", "changed": ""}]
+    previous = RuleSet()
+    for v in reversed(rules_store.list_versions(conn)):
+        rows.append(
+            {
+                "version": v.version,
+                "who": v.author,
+                "when": v.created_at.strftime(TIME_FORMAT),
+                "saved": v.saved_at.strftime(TIME_FORMAT) + " UTC",
+                "note": v.note,
+                "changed": ", ".join(changed_fields(previous, v.rules)) or "(none)",
+            }
+        )
+        previous = v.rules
+    return pd.DataFrame(list(reversed(rows)), columns=HISTORY_COLUMNS)
+
+
+def categories(conn: sqlite3.Connection) -> list[str]:
+    return [row[0] for row in conn.execute("SELECT name FROM categories ORDER BY name")]
+
+
+def worst_case_exposure(conn: sqlite3.Connection, rules: RuleSet) -> float:
+    """This week's spend plus every outstanding Offer at worst-case cost: the most the week can cost so far."""
+    budget = budget_state(conn, replace(rules, budget_mode=BudgetMode.WORST_CASE), clock.now(conn))
+    return budget.spent + budget.reserved

@@ -46,6 +46,7 @@ page = st.navigation(
     [
         st.Page("pages/1_clock.py", title="Simulation Clock", default=True),
         st.Page("pages/2_decisions.py", title="Decision log"),
+        st.Page("pages/3_rules.py", title="Rules"),
     ]
 )
 page.run()
