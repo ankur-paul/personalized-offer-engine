@@ -18,6 +18,7 @@ What has been built, one line per feature, in the order it landed.
 - [T17] Live world day-step: `clock advance` runs organic events for every Customer hour by hour, delivers history's pending orders, marks Offers to Customers without a chat `sent` at `send_at`, and calls the outcomes, Triggers and Daily Sweep hooks (no-ops until T18–T20). One day for 10k Customers takes about 1.5 s (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1`, `uv run pytest tests/sim/test_day_step.py`)
 - [T03] `offer-engine setup` walks through creating the Offer Bot and 6–8 Customer Bots in BotFather, checks each token with `getMe`, and fills `.env` with mode 0600 (`uv run offer-engine setup`; re-run it to keep or replace values)
 - [T04] Offer Card PNG drawn from an Offer; Offer Bot sends a demo card on `/start` and acknowledges `/claim CODE`; first Customer Bot claims cards it receives; `offer-engine start` runs both bots (`uv run offer-engine start`, then `/start` to the Offer Bot; `uv run offer-engine demo-send` for the Customer Bot)
+- [T19] Event Triggers: each simulated hour, an abandoned cart, points expiring within 7 days, 45 days since the last order and a first delivery each run the decision pipeline once per underlying event (`trigger_log`), and `clock advance` counts them as `decisions.<trigger>`. `trigger cart-abandoned` uses the same de-duplication (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1 && uv run offer-engine decisions --last 10`)
 
 ## Known issues / cuts
 
@@ -36,5 +37,7 @@ What has been built, one line per feature, in the order it landed.
 - Past Offers use the stored Ground Truth's Lift with the base at each moment; the stored `base` is still the end-of-history one.
 - In the organic history, a points burn can come before, in time, the same day's delivery points it spends: `simulate_day` credits deliveries at the start of the day. Balances and expiries are right. T14's points replay fixes it for the Customers it rebuilds.
 - `clock advance` on a 10k-Customer world gives about 2,600 sessions and 46 orders a day in early December, lower than T17's example. The history model leaves many Customers lapsed after a year; T15 calibrates it.
+- For the same reason the first `clock advance --days 1` on 10k Customers fires about 150 cart-abandoned and 15 long-gap Decisions, not T19's example of 1,130 and 64. It also fires about 120 points-expiring Decisions in its first hour, one for every Customer whose points already expire within 7 days.
+- `tests/sim/test_day_step.py` stubs the Triggers hook so its checks on the world's events and Offers stay exact. `tests/test_triggers.py` and `tests/sim/test_triggers_world.py` test the Triggers.
 - When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.

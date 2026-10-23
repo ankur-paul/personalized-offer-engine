@@ -242,6 +242,18 @@ def test_cli_trigger_cart_abandoned_then_decisions(world_env, eligible_id, capsy
     assert eligible_id in out and "cart_abandoned" in out and "chooser=rules" in out
 
 
+def test_cli_trigger_fires_once_per_simulated_time(world_env, eligible_id, capsys):
+    assert main(["trigger", "cart-abandoned", eligible_id]) == 0
+    with pytest.raises(SystemExit, match="already abandoned a cart"):
+        main(["trigger", "cart-abandoned", eligible_id])
+    query = "SELECT COUNT(*) FROM {} WHERE customer_id = ? AND {} >= ?"
+    start = clock.START.isoformat()
+    assert world_env.execute(query.format("decisions", "at"), (eligible_id, start)).fetchone()[0] == 1
+    assert world_env.execute(query.format("events", "at"), (eligible_id, start)).fetchone()[0] == 1
+    clock.set_now(world_env, clock.START + timedelta(hours=1))
+    assert main(["trigger", "cart-abandoned", eligible_id]) == 0
+
+
 def test_cli_trigger_holdout_prints_no_offer(world_env, holdout_id, capsys):
     assert main(["trigger", "cart-abandoned", holdout_id]) == 0
     assert "Decision: No Offer · chooser=rules · binding: holdout_pct" in capsys.readouterr().out

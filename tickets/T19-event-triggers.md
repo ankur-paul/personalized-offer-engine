@@ -1,5 +1,5 @@
 # T19 — Event Triggers on clock advance
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T17 · **Branch:** t19-event-triggers
 
 ## Goal
@@ -22,6 +22,7 @@ soon, long gap since last order, first order delivered. M5 (PLAN §3.1).
 - Rules still decide whether anything is sent; Triggers only ask.
 - The pipeline side: no `sim` imports (boundary test).
 - T09's `offer-engine trigger cart-abandoned` keeps working and should go through the same de-duplication.
+- Done as built: keys are the cart's time, the expiry date, the last order's time, and `first` for the first delivery. The log row commits with the Decision, so a Decision that raises leaves the event free to fire again. `t19_trigger_log.sql` also adds an `events(kind, at)` index for the hourly long-gap lookup. The CLI refuses a second cart abandoned by the same Customer at the same simulated time. `tests/sim/test_day_step.py` stubs the Triggers hook so T17's exact checks on events and Offers still hold. At 10k Customers the first day gives `decisions.cart_abandoned 150 · decisions.long_gap 15`, below the Check's example, because the generated world is quieter (see PROGRESS Known issues).
 
 ## Tests
 - `tests/test_triggers.py`: each detector on hand-built events; de-duplication (same expiry, same gap, same
@@ -34,7 +35,7 @@ soon, long gap since last order, first order delivered. M5 (PLAN §3.1).
 `uv run offer-engine decisions --last 10` shows Triggers other than `cart_abandoned`.
 
 ## Done when
-- [ ] The four Triggers fire on clock advance and run the pipeline
-- [ ] Each Trigger fires once per underlying event
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T19: event Triggers on clock advance`
+- [x] The four Triggers fire on clock advance and run the pipeline
+- [x] Each Trigger fires once per underlying event
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T19: event Triggers on clock advance`
