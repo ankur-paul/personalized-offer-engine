@@ -1,0 +1,10 @@
+{
+  "customer_id": "C01835",
+  "case": "expiring_points",
+  "name": "Ananya Banerjee",
+  "card": "Ananya Banerjee is a thirty-two-year-old graphic designer in Kolkata who found the marketplace on her own over two years ago and shops on her Android phone. A gold member, she has a large stash of loyalty points that expire very soon. She has placed only one order in the last six months, a while back, and returned an item. Lately she visits a few times a month, browsing beauty, electronics, fashion and kitchen gadgets like air fryers and lipstick, without leaving carts. She has received many offers, claimed four and used one.",
+  "frozen": false,
+  "drafted_at": "2026-10-23T09:36:26+00:00",
+  "seed": 7,
+  "population": 10000
+}

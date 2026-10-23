@@ -1,5 +1,5 @@
 # T23 — Persona Cards for the showcase Customers
-**Status:** TODO
+**Status:** BLOCKED (needs human: review Persona Cards)
 **Prereqs:** T13, T14 · **Branch:** t23-persona-cards
 
 ## Goal
@@ -26,6 +26,19 @@ data, the user reviews them, and they are frozen in the repo so demos repeat. M5
 - Review is a human step: after `personas draft`, set `**Status:** BLOCKED (needs human: review Persona Cards)`,
   tell the user, and finish after `personas freeze`.
 - Model from `OFFER_AGENT_MODEL` (look up via the `claude-api` skill).
+- Done as built: `draft_card` returns a `Draft(name, card)`. The command adds the case, `frozen`, `drafted_at`, `seed`
+  and `population` (Customers in the world) and saves a `PersonaCard` from `src/offer_engine/personas.py`. That module
+  also holds `CASES`, the case labels and `load_all()` for T24 and T25. It sits outside `sim/` so the Offer Bot can
+  read the cards.
+- Done as built: the criteria have bands so outliers stay out. Without them the Sure Thing and Holdout picks had
+  over 200 and 99 orders in 180 days. Sure Thing and Holdout need 3–12 orders in 90 days, cart abandoner 2–8
+  abandoned carts in 30 days, new one-order a signup 7–60 days ago. The five Offer cases skip the Holdout, Sure
+  Things and Sleeping Dogs, and only the `holdout` case takes a Holdout Customer.
+- Done as built: the first drafts were 7 women in their thirties out of 8, most of them school administrators, and
+  3 ran over 100 words. Each call now sees the first sentence of the cards already written and must describe someone
+  different. A card outside 60–100 words is asked for once more.
+- Done as built: on a world that doesn't pick a frozen card's Customer, `draft` stops with an error. It deletes
+  unfrozen drafts that aren't picked.
 
 ## Tests
 - `tests/sim/test_persona_select.py`: on a seeded 10k fixture (or 2k if slow) every case gets a distinct Customer;
@@ -38,7 +51,7 @@ data, the user reviews them, and they are frozen in the repo so demos repeat. M5
 review `uv run offer-engine personas freeze` → files committed with `frozen: true`.
 
 ## Done when
-- [ ] One showcase Customer per case, including a Sure Thing and a Holdout Customer
+- [x] One showcase Customer per case, including a Sure Thing and a Holdout Customer
 - [ ] Persona Cards drafted from observable data only, reviewed by the user, frozen and committed
 - [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
 - [ ] Committed: `T23: Persona Cards for showcase Customers`
