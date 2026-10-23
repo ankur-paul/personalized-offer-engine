@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import argparse
 
-COUNTED_TABLES = ("categories", "products", "customers", "sim_customer_traits", "events")
+COUNTED_TABLES = (
+    "categories",
+    "products",
+    "customers",
+    "sim_customer_traits",
+    "sim_ground_truth",
+    "events",
+)
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:
