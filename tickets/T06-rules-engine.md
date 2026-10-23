@@ -1,5 +1,5 @@
 # T06 — Rules engine: Eligible Set with Binding Rules (test-first)
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T02 · **Branch:** t06-rules-engine
 
 ## Goal
@@ -44,6 +44,24 @@ and `binding_rules[param]` names the Rule that gave the min:
 - `send_window`: from `now` to `now + max_send_delay_hours`, clipped to `send_hour_start`–`send_hour_end`; `None`
   if no allowed hour remains.
 
+Done as built:
+- Lower bounds no Rule sets are constants in `rules.py`: `pct` 5, `cap` ₹50, flat `amount` ₹50, `multiplier` 1.5.
+  An option whose upper bound falls below its floor is dropped.
+- `min_basket` lo is set at the largest allowed `amount`, so any amount in range keeps the margin floor. Its hi is
+  `inf`; no Rule caps it. "Avg margin" is the mean margin across catalog categories.
+- Points cost uses the catalog's mean `avg_basket` and an earn rate of 1 point per ₹10 (`POINTS_PER_RUPEE`, a copy
+  of the generator's rate, since `rules` can't import `sim`). The worst and expected costs are equal.
+- Fatigue Pause uses each dismissed Offer's `created_at` as its dismissal time, because `PastOffer` has no
+  dismissal time. A run of `fatigue_dismissals` within `fatigue_window_days` of each other pauses Offers until
+  the last one + `fatigue_pause_days`, even after the run leaves the window.
+- Short-circuit Binding Rules: `opt_out`, `holdout_pct`, `fatigue_dismissals`, `frequency_cap_count`,
+  `cooldown_days_after_redemption`, `min_days_since_signup`. `dropped` keys are the Offer Type, plus
+  `:<category>` for `pct_category`.
+- `send_window` is the first allowed span at or after `now`, half-open `[start, end)`. At 21:00 or later it moves
+  to the next day's send hours. When it is `None` the options are still listed; T07/T09 must treat that as No
+  Offer.
+- Ties between Rules name the one checked first (category cap, tier cap, margin floor; then cost cap, budget).
+
 ## Tests (write first)
 `tests/test_rules.py`: one test per Rule above, showing it binds and is named; conflict tests where two Rules bound
 the same parameter and the stricter wins; Opt-out beats everything; Holdout deterministic, ~10% ±1% over 10,000
@@ -55,8 +73,8 @@ IDs, Tester copy shares its source's Holdout; empty range is dropped with its Ru
 `pct_category fashion  pct 5–20  (binding: max_pct_by_loyalty_tier)`.
 
 ## Done when
-- [ ] `eligible_set` implements every Rule in Details, each naming itself as Binding Rule
-- [ ] `in_holdout` is hash-based and shared by Tester copies
-- [ ] `offer-engine eligible --demo` prints the Eligible Set
-- [ ] PROGRESS.md line added; `uv run pytest` green
-- [ ] Committed: `T06: Rules engine with Binding Rules`
+- [x] `eligible_set` implements every Rule in Details, each naming itself as Binding Rule
+- [x] `in_holdout` is hash-based and shared by Tester copies
+- [x] `offer-engine eligible --demo` prints the Eligible Set
+- [x] PROGRESS.md line added; `uv run pytest` green
+- [x] Committed: `T06: Rules engine with Binding Rules`

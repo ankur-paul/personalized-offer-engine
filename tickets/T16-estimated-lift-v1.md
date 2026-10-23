@@ -24,6 +24,9 @@ Deciding").
 - Learn only from observable tables (`offers`, `events`, `customers`); never `sim_*` (boundary test covers `lift`).
 - Comparable no-offer moments are derived from observable events the same way T14 chose moments, not read from
   `sim_history_moments`.
+- T14 sends at most one past Offer per Customer per 7 days and lets it decide purchases for those 7 days
+  (docs/QnA.md Q39), so "bought in 7 days" after a past Offer equals its `p_buy`. A no-offer moment inside an
+  Offer's 7 days isn't comparable: skip it, as T14 does.
 
 ## Tests
 - `tests/test_segment_lift.py`: hand-built history with a known +10-point Lift for one segment recovers it
