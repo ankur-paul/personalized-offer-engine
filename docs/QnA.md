@@ -160,3 +160,9 @@ Refined while building T14: a Customer who buys keeps the organic orders after t
 **Q41. Should T15 change how past Offers are redeemed to meet calibration targets 3, 3a and 4?**
 Options: keep "every buyer in the window redeems" and record the misses; let a buyer who would have bought anyway use the code only with some chance per trigger; raise discount Lift and make heavy buyers abandon fewer carts.
 Decided: record the misses. On 10k Customers cart recovery is 30% (target 8–15%), 96% of recovered carts would have bought anyway (45–75%), and Redemption per send is 15% targeted (1.5–5%) and 4% broadcast (0.1–1%). The benchmarks are low mostly because recipients never read the message, while our Customers read every Offer. The broadcast target needs a mean 7-day buying chance under 1% across recipients, against target 1a's 4–8% for active Customers, so no tuning of T05 or T12 meets both. T16 learns from 7-day purchase rates, which the misses don't affect, and Sure Things keep costing margin, which is the problem the engine exists to fix.
+
+## Round 10: building T25
+
+**Q42. Does a Tester's copy carry the source Customer's past Offers?**
+Options: events and points only, as T25 first said; also the finished Offers of the last 180 days.
+Decided: also the finished Offers (redeemed, expired, dismissed, withdrawn), with new codes and the copied events linked to them. Estimated Lift's coupon-user segment, the agent's prompt, frequency caps and cooldowns all read past Offers. Without them the engine would decide for a different Customer from the one the Persona Card describes. Open Offers (queued, sent, claimed) stay with the source, so none of the source's outcomes reach the Tester.

@@ -24,6 +24,12 @@ EVENT_DAYS = 180
 CHUNK = 500
 
 
+def population_filter(alias: str = "") -> str:
+    """SQL condition that leaves Tester copies out of population metrics (PLAN "Assumed › Outcomes"), e.g.
+    `f"SELECT COUNT(*) FROM customers c WHERE {population_filter('c')}"`."""
+    return f"{alias}.is_tester_copy = 0" if alias else "is_tester_copy = 0"
+
+
 def load_customer_state(conn: sqlite3.Connection, customer_id: str, now: datetime) -> CustomerState:
     """Raises KeyError if the Customer doesn't exist."""
     states = load_customer_states(conn, [customer_id], now)

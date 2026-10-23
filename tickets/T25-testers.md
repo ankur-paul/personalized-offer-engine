@@ -1,5 +1,5 @@
 # T25 — Testers: pick a Customer, get their Offers
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T18, T23 · **Branch:** t25-testers
 
 ## Goal
@@ -31,6 +31,13 @@ QnA Q10, Q16, Q38; "Assumed › Outcomes").
 - Each Tester gets their own copy so two judges playing the same Customer don't use up each other's caps.
 - Tester copies are chat-attached, so the agent decides for them (T11) and the Daily Sweep considers them first.
 - Redemption messages come from T18 via the outbox.
+- Done as built: there is no `sim.testers.copy_hidden`. T17 and T18 had already decided that copies have no `sim_*`
+  rows: they draw no organic events, and their outcomes use the source's Ground Truth through `source_customer_id`.
+  The copy also carries the source's finished Offers from the last 180 days, with new codes (QnA Q42). Switching opts
+  the old copy out and withdraws its queued Offers, so the Daily Sweep stops sending to a copy nobody plays; picking
+  it again opts it back in. The pick reply shows the clock's date instead of a fixed 2 Dec 2026, and `/offers` says
+  when an Offer goes out if the send window hasn't opened. `population_filter(alias)` is a function; the filters
+  already written by hand in `segment_lift`, `calibration` and persona selection stay as they are.
 
 ## Tests
 - `tests/test_testers.py`: copy created once per (Customer, Telegram user); copy shares the source's Holdout;
@@ -43,9 +50,9 @@ Card with an agent caption; tap **Claim**; in the console advance 3 days → `Si
 Offer expires. Pick the Holdout Customer → control-group message, `/offers` → none.
 
 ## Done when
-- [ ] `/start` offers Persona Card buttons and Surprise me; picking creates a per-Tester copy
-- [ ] Holdout pick explains the control group
-- [ ] `/offers` runs the pipeline on request and explains No Offer
-- [ ] Tester copies are excluded from population metrics
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T25: Testers pick a Customer and receive Offers`
+- [x] `/start` offers Persona Card buttons and Surprise me; picking creates a per-Tester copy
+- [x] Holdout pick explains the control group
+- [x] `/offers` runs the pipeline on request and explains No Offer
+- [x] Tester copies are excluded from population metrics
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T25: Testers pick a Customer and receive Offers`

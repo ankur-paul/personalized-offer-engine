@@ -11,7 +11,6 @@ from offer_engine import clock
 from offer_engine.customers import load_customer_state
 from offer_engine.domain import RuleSet
 from offer_engine.offer_bot import responses
-from offer_engine.offer_bot.handlers import demo
 from offer_engine.offer_bot.handlers.responses import (
     BUTTON_PATTERN,
     CODE_COMMAND_PATTERN,
@@ -169,29 +168,6 @@ def test_stop_and_restart_from_an_unlinked_chat(conn):
     assert responses.restart(conn, CHAT) == responses.NOT_LINKED
 
 
-def test_demo_start_links_a_tester_and_opts_them_back_in(conn):
-    assert demo.start(conn, 555, is_bot=False) == demo.LINKED
-    responses.stop(conn, 555)
-    assert demo.start(conn, 555, is_bot=False) == f"{responses.RESTARTED} {demo.LINKED}"
-    assert not opted_out(conn, demo.DEMO_CUSTOMER_ID)
-
-
-def test_demo_start_from_a_customer_bot_only_opts_in(conn, add_offer):
-    add_offer()
-    responses.stop(conn, CHAT)
-    assert demo.start(conn, CHAT, is_bot=True) == responses.RESTARTED
-    assert conn.execute("SELECT COUNT(*) FROM chats").fetchone()[0] == 1
-
-
-def test_link_tester_creates_the_customer_and_relinks(conn):
-    demo.link_tester(conn, 111, NOW)
-    demo.link_tester(conn, 222, NOW)
-    row = conn.execute(
-        "SELECT chat_id, kind FROM chats WHERE customer_id = ?", (demo.DEMO_CUSTOMER_ID,)
-    ).fetchone()
-    assert tuple(row) == (222, "tester")
-
-
 # --- Text commands and buttons -----------------------------------------------------------------
 
 
@@ -232,7 +208,6 @@ def test_code_command_pattern_rejects(text):
 )
 def test_stop_pattern(text, ok):
     assert bool(re.match(STOP_PATTERN, text)) is ok
-    assert bool(re.match(demo.START_PATTERN, text.replace("stop", "start").replace("STOP", "START"))) is ok
 
 
 @pytest.mark.parametrize(
