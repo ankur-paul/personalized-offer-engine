@@ -1,5 +1,5 @@
 # T24 — Customer Bots with bounded role-play
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T18, T23 · **Branch:** t24-customer-bots
 
 ## Goal
@@ -30,6 +30,16 @@ replies in character with `/claim CODE` or `/notnow CODE`. M5 (PLAN §4.2; ADR 0
 - Model from `FAST_AGENT_MODEL`. Agent outage → fit 0 (pure Ground Truth flip) and a neutral reply.
 - Offers arrive from Triggers and the Daily Sweep (T19/T20) or `offer-engine trigger`; any source works.
 
+Done as built:
+- `rate_fit` returns `(fit, Replies(claim, not_now))`: one agent call writes both in-character replies, and the code sends the one the flip picked. So the agent still never decides, and a card costs one call, not two. The tool is `strict` with `tool_choice: auto`, because Opus 5.5, Sonnet 5.5 and Fable 5.1 reject forced tool choice (as in T11). Replies lose slash commands and `POE-` codes and are cut at 280 characters.
+- `react(conn, offer, persona, client, model, rng)` also takes the model. It returns None for an Offer that isn't `sent`, already has a fate, or has no Ground Truth, so each Offer gets one reaction. `flip(p_used, rng)` holds the coin flips, and the 10,000-run test uses it directly. `p_base` is T18's `outcomes.buy_chance`, the same chance a Customer without a chat gets.
+- The fate holds only `buys` and `buy_at`, uniform from the clock's time to expiry. The bot's own `/claim` or `/notnow` message changes the Offer's status. Like T18's fates, it cancels the Customer's organic orders in the window (Q39).
+- `sim_bot_responses` has two more columns: `claims` and `created_at` (simulated).
+- `react_to_card(db_path, code, chat_id, …)` is the bot's entry point. It acts only on Offers whose Customer is linked to that bot's chat, seeds the flip by (SEED, Offer ID), and waits up to 15 s for the Offer to leave `queued`. The Offer Bot marks an Offer `sent` only after Telegram accepts the card, so the card can arrive first; the live Check hit this.
+- `chats link-showcase` skips optional cases (`persuadable`) when bots run short, and errors only when the required cards outnumber the bots (user's choice: `.env` has 7 bots for 8 cards).
+- Two fixes outside the Scope, both needed for the Check. The Offer Bot sent cards to Customer Bots by numeric chat ID and Telegram answered "Chat not found", so `delivery.send_target` now uses the bot's `@username`. T10's Check had run only its Tester half. The Offer Bot's `/claim` and `/notnow` pattern now matches any line of a message, so the command can follow the reply. `delivery._offer` is now `offer_from_row`, which the role-play uses to draw the card's terms.
+- Check run on 2026-10-23 on the 10k seed-7 world with 7 real Customer Bots in one process. `trigger cart-abandoned C09823` queued a Nudge. After `clock advance --hours 9`, @ap_customer5_bot got the card and replied "Thanks for the reminder, I'm still comparing basmati brands. I'll come back to it later." with `/notnow POE-VYAP91` (fit 0.7, chance 5.3% → 6.4%). The Offer Bot marked it `dismissed`. Over the next two simulated days, three more cards got in-character replies (two `/claim`, one `/notnow`), each accepted by the Offer Bot. No bot bought: their chances were 1–6%. A claiming buyer's Redemption is covered by `test_a_buyer_gets_a_roleplay_fate_and_redeems_through_t18`, not seen live. Three cards hit the `queued` race before the fix. The fix passes its tests but hasn't run on a fresh live card, because the frequency cap blocked every linked Customer after the Daily Sweeps.
+
 ## Tests
 - `tests/test_roleplay.py`: property test (hypothesis) that `nudged_chance` stays within ±30% of `p_base` for any
   fit, including NaN and huge values; seeded flips over 10,000 runs match the nudged chance ±1 point; a fake agent
@@ -42,8 +52,8 @@ replies in character with `/claim CODE` or `/notnow CODE`. M5 (PLAN §4.2; ADR 0
 `/notnow`; `clock advance --days 3` → a claiming buyer's Offer shows `redeemed`.
 
 ## Done when
-- [ ] All Customer Bots run in one process, each linked to a showcase Customer
-- [ ] The nudge is bounded at ±30% by code, proven by a property test
-- [ ] Bots reply in character and act via `/claim` / `/notnow`; Redemption follows through T18
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T24: Customer Bots with bounded role-play`
+- [x] All Customer Bots run in one process, each linked to a showcase Customer
+- [x] The nudge is bounded at ±30% by code, proven by a property test
+- [x] Bots reply in character and act via `/claim` / `/notnow`; Redemption follows through T18
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T24: Customer Bots with bounded role-play`

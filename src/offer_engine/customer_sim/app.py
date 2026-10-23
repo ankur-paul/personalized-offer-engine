@@ -1,22 +1,29 @@
 """The Customer Bot simulator process: `python -m offer_engine.customer_sim.app`, polling.
 
-T04 runs only the first Customer Bot in `CUSTOMER_BOTS`. On an Offer Card from the Offer Bot it replies
-`/claim CODE` to the Offer Bot by username, once per code.
+Every Customer Bot in `CUSTOMER_BOTS` runs here, one python-telegram-bot `Application` per token in one asyncio
+loop. On an Offer Card from the Offer Bot, the bot plays its linked Customer (`roleplay.react_to_card`) and sends
+the in-character reply with `/claim CODE` or `/notnow CODE` to the Offer Bot by username, once per Offer.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+import signal
+from typing import Any
 
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
+from offer_engine.commands.chats import bot_chat_ids
 from offer_engine.config import Settings
+from offer_engine.customer_sim import roleplay
 
 log = logging.getLogger(__name__)
 
 CODE_PATTERN = re.compile(r"\bPOE-[A-Z0-9]{6}\b", re.IGNORECASE)
+AGENT_TIMEOUT_SECONDS = 30.0
 
 
 def parse_code(caption: str | None) -> str | None:
@@ -25,25 +32,45 @@ def parse_code(caption: str | None) -> str | None:
     return match.group(0).upper() if match else None
 
 
-def build_app(settings: Settings) -> Application:
-    if not settings.customer_bots:
-        raise SystemExit("CUSTOMER_BOTS is empty; run `offer-engine setup`")
+def agent_client(settings: Settings) -> Any | None:
+    """The role-play agent's client, or None (every Offer then gets the plain Ground Truth flip)."""
+    if not settings.anthropic_api_key or not settings.fast_agent_model:
+        log.warning("ANTHROPIC_API_KEY or FAST_AGENT_MODEL unset; Customer Bots reply without the agent")
+        return None
+    import anthropic
+
+    return anthropic.Anthropic(
+        api_key=settings.anthropic_api_key, max_retries=1, timeout=AGENT_TIMEOUT_SECONDS
+    )
+
+
+def build_app(settings: Settings, username: str, token: str, client: Any | None) -> Application:
     if not settings.offer_bot_username:
         raise SystemExit("OFFER_BOT_USERNAME is missing; run `offer-engine setup`")
-    username, token = settings.customer_bots[0]
     offer_bot = settings.offer_bot_username.lstrip("@")
+    chat_id = bot_chat_ids([(username, token)])[username.lstrip("@").lower()]
     app = Application.builder().token(token).build()
-    # Telegram asks bot-to-bot handlers to terminate predictably: claim each code once, ignore everything else.
-    claimed: set[str] = set()
 
     async def on_offer_card(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         code = parse_code(update.effective_message.caption)
-        if code is None or code in claimed:
-            log.info("@%s: Offer Card without a new code; not replying", username)
+        if code is None:
+            log.info("@%s: Offer Card without a code; not replying", username)
             return
-        claimed.add(code)
-        await context.bot.send_message(f"@{offer_bot}", f"/claim {code}")
-        log.info("@%s: sent /claim %s to @%s", username, code, offer_bot)
+        # Telegram asks bot-to-bot handlers to terminate predictably: the database allows one reaction per Offer.
+        reaction = await asyncio.to_thread(
+            roleplay.react_to_card,
+            settings.db_path,
+            code,
+            chat_id,
+            client,
+            settings.fast_agent_model,
+            settings.seed,
+        )
+        if reaction is None:
+            log.info("@%s: %s isn't a new Offer for this bot; not replying", username, code)
+            return
+        await context.bot.send_message(f"@{offer_bot}", reaction.reply_text)
+        log.info("@%s: %s → %s", username, code, reaction.reply_text.splitlines()[-1])
 
     async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         log.info("@%s: @%s says %r", username, offer_bot, update.effective_message.text)
@@ -51,8 +78,29 @@ def build_app(settings: Settings) -> Application:
     from_offer_bot = filters.User(username=offer_bot)
     app.add_handler(MessageHandler(filters.PHOTO & from_offer_bot, on_offer_card))
     app.add_handler(MessageHandler(filters.TEXT & from_offer_bot, on_text))
-    log.info("running Customer Bot @%s", username)
     return app
+
+
+async def run_all(apps: list[tuple[str, Application]]) -> None:
+    """Poll every bot until SIGINT or SIGTERM, then stop them all."""
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop.set)
+    started: list[Application] = []
+    try:
+        for username, app in apps:
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+            started.append(app)
+            log.info("running Customer Bot @%s", username)
+        await stop.wait()
+    finally:
+        for app in reversed(started):
+            await app.updater.stop()
+            await app.stop()
+            await app.shutdown()
 
 
 def main() -> None:
@@ -65,7 +113,11 @@ def main() -> None:
         # Exit cleanly so `offer-engine start` keeps the Offer Bot running for Testers.
         log.warning("CUSTOMER_BOTS is empty; no Customer Bot to run")
         return
-    build_app(settings).run_polling(allowed_updates=Update.ALL_TYPES)
+    client = agent_client(settings)
+    apps = [
+        (username, build_app(settings, username, token, client)) for username, token in settings.customer_bots
+    ]
+    asyncio.run(run_all(apps))
 
 
 if __name__ == "__main__":

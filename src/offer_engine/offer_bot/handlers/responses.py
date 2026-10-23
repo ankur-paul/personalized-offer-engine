@@ -15,8 +15,9 @@ from offer_engine.offer_bot.delivery import CLAIM, NOT_NOW, STOP
 
 log = logging.getLogger(__name__)
 
-# Text, not a command filter: whether a bot's private message gets a bot_command entity is undocumented.
-CODE_COMMAND_PATTERN = r"(?i)^/(claim|notnow)(?:@\w+)?(?:\s+(\S+))?\s*$"
+# Text, not a command filter: whether a bot's private message gets a bot_command entity is undocumented. The command
+# may be any line of the message, so a Customer Bot can put it under its in-character reply (T24).
+CODE_COMMAND_PATTERN = r"(?im)^/(claim|notnow)(?:@\w+)?(?:[ \t]+(\S+))?[ \t]*$"
 STOP_PATTERN = r"(?i)^/stop(?:@\w+)?\s*$"
 BUTTON_PATTERN = rf"^(?:({CLAIM}|{NOT_NOW}):(\S+)|({STOP}))$"
 

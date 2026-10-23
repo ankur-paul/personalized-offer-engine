@@ -81,7 +81,9 @@ class FakeBot:
 
 
 def run_delivery(bot: FakeBot, tmp_path) -> None:
-    context = SimpleNamespace(bot=bot, bot_data={"settings": SimpleNamespace(db_path=tmp_path / "test.db")})
+    context = SimpleNamespace(
+        bot=bot, bot_data={"settings": SimpleNamespace(db_path=tmp_path / "test.db", customer_bots=[])}
+    )
     asyncio.run(delivery.deliver(context))
 
 
@@ -127,3 +129,11 @@ def test_offer_bot_registers_the_delivery_job(monkeypatch):
     app = build_app(Settings(offer_bot_token="123:abc"))
     [job] = app.job_queue.jobs()
     assert job.name == "delivery" and job.callback is delivery.deliver
+
+
+def test_customer_bot_chats_are_addressed_by_username():
+    from offer_engine.offer_bot.delivery import send_target
+
+    bots = [("ap_customer1_bot", "111:aaa"), ("@ap_customer2_bot", "222:bbb")]
+    assert send_target(222, bots) == "@ap_customer2_bot"
+    assert send_target(4242, bots) == 4242

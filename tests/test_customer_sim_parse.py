@@ -19,3 +19,15 @@ def test_code_is_parsed(caption, code):
 @pytest.mark.parametrize("caption", [None, "", "No code here", "POE-SHORT", "POE-TOOLONG1", "XPOE-DEMO01"])
 def test_no_code(caption):
     assert parse_code(caption) is None
+
+
+def test_every_customer_bot_gets_its_own_app_and_no_key_means_no_agent():
+    from offer_engine.config import Settings
+    from offer_engine.customer_sim.app import agent_client, build_app
+
+    settings = Settings(
+        offer_bot_username="@poe_offer_bot", customer_bots=[("c1_bot", "111:a"), ("c2_bot", "222:b")]
+    )
+    apps = [build_app(settings, name, token, None) for name, token in settings.customer_bots]
+    assert [app.bot.token for app in apps] == ["111:a", "222:b"]
+    assert agent_client(settings) is None
