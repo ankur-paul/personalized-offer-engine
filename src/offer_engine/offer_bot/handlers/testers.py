@@ -23,6 +23,7 @@ from telegram.ext import (
 )
 
 from offer_engine import clock, personas, pipeline
+from offer_engine.daily_sweep import SWEEP_HOUR
 from offer_engine.db import connect
 from offer_engine.domain import RuleSet, TriggerKind
 from offer_engine.offer_bot import responses
@@ -44,7 +45,11 @@ HOLDOUT = (
     "You're playing {name}, who is in the control group (Holdout). They never receive offers, so we can measure "
     "what offers change."
 )
-PLAYING = "Simulated date: {date}. Offers arrive as the marketing team advances the clock. Send /offers to ask for one now."
+# A copy has no organic life, so no Trigger fires for it: only the Daily Sweep and /offers decide for it.
+PLAYING = (
+    "Simulated date: {date}. The engine reviews {name} every simulated day at {hour:02d}:00, as the marketing team "
+    "advances the clock. Send /offers to ask for one now."
+)
 
 # Callback data is "pick:<Customer ID>" or "pick:surprise".
 PICK, SURPRISE = "pick", "surprise"
@@ -110,7 +115,7 @@ def pick(
     _, rules = current_rules(conn)
     if in_holdout(cid, rules.holdout_pct):
         return f"{card.card}\n\n{HOLDOUT.format(name=card.name)}"
-    return f"{card.card}\n\n{PLAYING.format(date=_date(clock.now(conn)))}"
+    return f"{card.card}\n\n{PLAYING.format(date=_date(clock.now(conn)), name=card.name, hour=SWEEP_HOUR)}"
 
 
 def request_offer(conn: sqlite3.Connection, chat_id: int, directory: Path = personas.PERSONAS_DIR) -> str:

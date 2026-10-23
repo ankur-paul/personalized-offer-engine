@@ -236,8 +236,8 @@ def test_start_without_cards(world, cards_dir):
 def test_pick_creates_a_copy_and_shows_the_persona_card(world, cards, cards_dir, ids):
     reply = handlers.pick(world, ids.outside, USER, USER, cards_dir)
     assert reply == (
-        "Asha shops at night.\n\nSimulated date: 1 Dec 2026. Offers arrive as the marketing team advances the clock. "
-        "Send /offers to ask for one now."
+        "Asha shops at night.\n\nSimulated date: 1 Dec 2026. The engine reviews Asha Rao every simulated day at "
+        "10:00, as the marketing team advances the clock. Send /offers to ask for one now."
     )
     assert testers.played_by(world, USER) == f"{ids.outside}-t{USER}"
 

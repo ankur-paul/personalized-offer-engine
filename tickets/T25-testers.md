@@ -35,7 +35,8 @@ QnA Q10, Q16, Q38; "Assumed › Outcomes").
   rows: they draw no organic events, and their outcomes use the source's Ground Truth through `source_customer_id`.
   The copy also carries every past Offer that is finished or expired, whatever its age, with new codes (QnA Q42). Switching opts
   the old copy out and withdraws its queued Offers, so the Daily Sweep stops sending to a copy nobody plays; picking
-  it again opts it back in. The pick reply shows the clock's date instead of a fixed 2 Dec 2026, and `/offers` says
+  it again opts it back in. The pick reply shows the clock's date instead of a fixed 2 Dec 2026,
+  and says the engine reviews the Customer at the 10:00 Daily Sweep, since no Trigger fires for a copy. `/offers` says
   when an Offer goes out if the send window hasn't opened. `population_filter(alias)` is a function; the filters
   already written by hand in `segment_lift`, `calibration` and persona selection stay as they are.
 
