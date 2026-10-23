@@ -47,6 +47,7 @@ from offer_engine.sim.generate.history import (
     POINTS_VALIDITY,
     RETURN_DAYS,
     RETURN_RATE,
+    burn_chance,
     insert_events,
     products_by_category,
     season,
@@ -70,9 +71,9 @@ BROADCAST_WEEKDAY, BROADCAST_HOUR = 4, 18  # Friday 18:00
 
 CLAIM_WITHOUT_BUYING = 0.25
 DISMISS_CHANCE = 0.05
-# Calibration target 12: Telegram opt-out is 0.5–1.5% per message. Past Offers are at most one a week, so the
-# assumed doubling above 2 messages a week never applies.
-OPT_OUT_CHANCE = 0.005
+# Calibration target 12: Telegram opt-out is 0.5–1.5% per message. Only non-buyers opt out, so about 0.9% of sends
+# do. Past Offers are at most one a week, so the assumed doubling above 2 messages a week never applies.
+OPT_OUT_CHANCE = 0.01
 
 TRIGGERS = ("cart_abandoned", "long_gap", "broadcast")
 TARGETED = ("cart_abandoned", "long_gap")
@@ -257,10 +258,10 @@ def _remove_orders(ctx: GenContext, ledger: Ledger, removed: list[tuple], end: d
     still due after the history are taken out of `ctx.scheduled`. Returns the deleted event ids."""
     gone: set[int] = set()
 
-    def take(key: tuple, after: datetime | None = None) -> None:
+    def take(key: tuple, after: datetime | None = None, at_exactly: datetime | None = None) -> None:
         found = ledger.follow_ons.get(key, [])
         for i, (eid, at) in enumerate(found):
-            if after is None or at > after:
+            if (after is None or at > after) and (at_exactly is None or at == at_exactly):
                 gone.add(eid)
                 del found[i]
                 return
@@ -270,7 +271,8 @@ def _remove_orders(ctx: GenContext, ledger: Ledger, removed: list[tuple], end: d
         take((cid, "points_burned", at))
         delivered_at = at + timedelta(days=DELIVERY_DAYS)
         if delivered_at < end:
-            take((cid, "delivered", product, amount))
+            # The same product at the same price may have been ordered before; take this order's delivery.
+            take((cid, "delivered", product, amount), at_exactly=delivered_at)
             take((cid, "points_earned", delivered_at))
             before = len(gone)
             take((cid, "return", product, amount), after=delivered_at)
@@ -368,7 +370,7 @@ def _redemption(
         Event(cid, delivered_at, "delivered", category, product.id, basket),
         Event(cid, delivered_at, "points_earned", category, amount=float(points)),
     ]
-    if rng.random() < ctx.traits[cid].coupon_affinity:
+    if rng.random() < burn_chance(ctx.traits[cid]):
         # The most points could cover; the replay cuts it to the balance then, as `session` does.
         most = int(basket * POINTS_BURN_MAX_SHARE / POINT_VALUE)
         events.append(Event(cid, at, "points_burned", category, amount=float(most)))

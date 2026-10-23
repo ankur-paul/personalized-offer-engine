@@ -63,7 +63,16 @@ STEPS: list[Callable[[GenContext], None]] = [
 ]
 
 # Wiped before every run, children first. Every `sim_*` table is wiped too.
-GENERATED_TABLES = ("events", "decisions", "offers", "chats", "customers", "products", "categories")
+GENERATED_TABLES = (
+    "events",
+    "decisions",
+    "offers",
+    "chats",
+    "trigger_log",
+    "customers",
+    "products",
+    "categories",
+)
 
 
 def history_start(end: date, months: int) -> date:

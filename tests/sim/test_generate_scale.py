@@ -71,3 +71,19 @@ def test_top_20pct_spend_share_within_target_8(world_2k):
     )
     top = spend[: len(spend) // 5]
     assert 0.65 <= sum(top) / sum(spend) <= 0.75
+
+
+# Misses recorded in PROGRESS.md "Known issues": past Offers' Redemptions (docs/QnA.md Q41) and points breakage.
+KNOWN_MISSES = {"3", "3a", "4", "11 Points breakage, new Customers"}
+
+
+def test_10k_world_meets_every_calibration_target_but_the_known_misses(big_world):
+    from offer_engine.sim.calibration import measure
+
+    ctx, _ = big_world
+    misses = {
+        m.id if m.id in KNOWN_MISSES else f"{m.id} {m.name}"
+        for m in measure(ctx.conn)
+        if not m.passed and not m.split
+    }
+    assert misses <= KNOWN_MISSES
