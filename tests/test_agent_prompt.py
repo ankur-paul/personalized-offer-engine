@@ -71,3 +71,23 @@ def test_customer_state_has_no_simulator_fields(world):
 def test_system_prompt_is_static():
     """The cached prefix is the same for every Decision: no dates, IDs or amounts in it."""
     assert not re.search(r"C\d{5}|20\d\d-\d\d-\d\d|₹\d", agent_chooser.SYSTEM_PROMPT)
+
+
+def test_events_at_the_same_time_list_the_later_one_first(world):
+    """Stop then /start in one simulated minute: the prompt must show the opt-in as the latest event."""
+    from dataclasses import replace
+
+    from offer_engine.domain import Event
+
+    es, state, _ = next(prompts(world))
+    at = NOW - timedelta(minutes=5)
+    events = (
+        *state.events,
+        Event(state.customer.id, at, "opted_out"),
+        Event(state.customer.id, at, "opted_in"),
+    )
+    prompt = agent_chooser.user_prompt(
+        es, replace(state, events=events), load_catalog(world), RuleSet(), TriggerKind.CART_ABANDONED
+    )
+    latest = prompt.split("Latest events", 1)[1]
+    assert latest.index("opted_in") < latest.index("opted_out")

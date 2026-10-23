@@ -59,6 +59,9 @@ Done as built:
   `start`'s output thread for the Offer Bot, whose next log write then blocked on a full pipe for good. Fixed:
   `start` keeps reading a process's output when writing it fails, `db.connect` closes a connection whose setup
   fails, and a button tap answered too late still gets its reply.
+- Same run: after Stop then `/start` in one simulated minute, the agent chose No Offer, citing the opt-out as
+  the latest event. Its prompt listed same-time events oldest first (`sorted(..., reverse=True)` keeps ties in
+  order). `agent_chooser._recent` now reverses the recorded order, so the opt-in shows as the latest.
 
 ## Tests
 - `tests/test_responses.py`: claim/dismiss/stop/restart state changes and reply texts; wrong chat; expired code;
