@@ -41,6 +41,8 @@ class GenContext:
     state: dict[str, CustomerSim] = field(default_factory=dict)
     # Events due on a later day (deliveries, returns), keyed by day.
     scheduled: dict[date, list[Event]] = field(default_factory=lambda: defaultdict(list))
+    # Customers whose carts never become organic orders today: they hold an active Offer (T17).
+    no_order_ids: set[str] = field(default_factory=set)
 
     def rng(self, name: str) -> np.random.Generator:
         """A stream per step name, so adding a step never shifts another step's draws."""
@@ -49,8 +51,15 @@ class GenContext:
 
 from offer_engine.sim import ground_truth
 from offer_engine.sim.generate import catalog, customers, history
+from offer_engine.sim.world import pending
 
-STEPS: list[Callable[[GenContext], None]] = [catalog.step, customers.step, history.step, ground_truth.step]
+STEPS: list[Callable[[GenContext], None]] = [
+    catalog.step,
+    customers.step,
+    history.step,
+    ground_truth.step,
+    pending.save_scheduled,
+]
 
 # Wiped before every run, children first. Every `sim_*` table is wiped too.
 GENERATED_TABLES = ("events", "decisions", "offers", "chats", "customers", "products", "categories")

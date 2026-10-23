@@ -172,6 +172,8 @@ def session(
     cart_chance, order_chance = funnel(category, traits, demand)
     if first:
         cart_chance, order_chance = max(cart_chance, FIRST_SESSION_CART), FIRST_SESSION_ORDER_GIVEN_CART
+    if customer_id in ctx.no_order_ids:
+        order_chance = 0.0  # the Offer's outcome (T18) decides whether they buy
     if rng.random() >= cart_chance:
         return events
     product = viewed[int(rng.integers(0, len(viewed)))]
