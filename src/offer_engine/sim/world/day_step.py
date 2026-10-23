@@ -33,7 +33,6 @@ from offer_engine.sim.world.pending import add_pending, pending
 
 DEFAULT_SEED = 7
 HOUR = timedelta(hours=1)
-ACTIVE = (OfferStatus.SENT, OfferStatus.CLAIMED)
 EPOCH = datetime(2000, 1, 1)
 OUTCOMES_STREAM = zlib.crc32(b"outcomes")
 
@@ -124,14 +123,7 @@ def draw_day(conn: sqlite3.Connection, world: World, day: date, seed: int) -> No
     due: dict[str, list[Event]] = defaultdict(list)
     for event in pending(conn, drawn=False, before=day_start + timedelta(days=1), delete=True):
         due[event.customer_id].append(event)
-    no_orders = {
-        row[0]
-        for row in conn.execute(
-            f"SELECT DISTINCT customer_id FROM offers WHERE status IN ({','.join('?' * len(ACTIVE))}) "
-            "AND expires_at > ?",
-            (*ACTIVE, _iso(day_start)),
-        )
-    }
+    no_orders = outcomes.no_order_ids(conn, day_start)
 
     drawn: list[Event] = []
     later: list[Event] = []
@@ -155,6 +147,7 @@ def draw_day(conn: sqlite3.Connection, world: World, day: date, seed: int) -> No
 
     add_pending(conn, drawn, drawn=True)
     add_pending(conn, later, drawn=False)
+    outcomes.trim_orders(conn, day_start)
     conn.executemany(
         "UPDATE sim_customer_traits SET churned_at = ? WHERE customer_id = ?",
         [(_iso(sim.churned_at), cid) for cid, sim in state.items() if sim.churned_at],

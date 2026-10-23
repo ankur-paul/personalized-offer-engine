@@ -25,6 +25,8 @@ What has been built, one line per feature, in the order it landed.
 - [T20] Daily Sweep: at 10:00 each simulated day the pipeline decides for every Customer not decided in the last 24 simulated hours, chat-attached ones first and the rest in a date-seeded shuffle. `pipeline.decide_many` loads the Rules, catalog and budget once, so 10k Customers take about 30 s. `clock advance` prints `sweep.offer`, `sweep.no_offer`, `sweep.skipped` and `sweep.binding.<rule>` (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1`)
 - [chore] `decide_many` loads Estimated Lift once per sweep, not once per Customer (an interaction of T16 and T20 found at merge; `uv run pytest tests/test_pipeline.py -k loads_estimated`)
 - [T21] Streamlit console: Simulation Clock page with +1 hour, +1 day and Auto mode, and a Decision log with filters and the selected row's Offer; `offer-engine start` also runs it (`uv run offer-engine generate --customers 2000 && uv run streamlit run console/app.py`, press **+1 day**, then open Decision log)
+- [T18] Offer outcomes: each simulated hour, sent Offers resolve by Ground Truth. A Customer without a chat buys with chance `p_buy`, claims first, and the order and `offer_redeemed` events link to the Offer; 25% of non-buyers claim, a few dismiss or opt out, and the rest expire. A Tester's Claim leads to a purchase with chance p / (p + 0.25 · (1 − p)), and the Offer Bot then sends "Simulated order: ₹1,240 basket, code POE-… used. You saved ₹186." Customer Bot Offers wait for a role-play fate in `sim_offer_fates`. Organic orders stop from the send until the Redemption, or for 7 days without one (`uv run offer-engine clock advance --days 4` prints `claimed`, `redeemed` and `expired`; `uv run pytest tests/sim/test_outcomes.py`)
+
 
 ## Known issues / cuts
 
@@ -35,7 +37,6 @@ What has been built, one line per feature, in the order it landed.
 - Validation needs a `send_at` on every Offer. The Fallback (T09) must set one, e.g. the start of the send window.
 - The Caption Check misses a caption that names the wrong category ("15% off electronics" on a fashion Offer); the ticket has no reason code for it. It also lets "today" and "this week" through unless worded as a deadline ("today only", "this weekend"). Add rows to the tables in `caption_check.py` to tighten it.
 - The rules chooser values every category the Customer saw in the last 90 days and picks the most valuable one. A Customer who abandoned groceries can get a fashion Offer. It uses the Lift priors in `choosers/priors.py` until `offer-engine lift fit` has run.
-- The budget counts a Redemption's actual cost from the `order` event linked to the Offer by `offer_id`. Without that event it counts the worst-case cost, so T18 must link the order.
 - `uv run pytest` takes about 45 s. The Ground Truth and past-Offer tests share a 2,000-Customer world, about 18 s of that. `uv run pytest -m slow tests/sim` takes about 2.5 minutes.
 - T11's live test (`uv run pytest -m live tests/test_agent_live.py`) hasn't run: it needs `ANTHROPIC_API_KEY` and `OFFER_AGENT_MODEL` in `.env`.
 - The agent chooser doesn't use forced `tool_choice` (current models reject it with a 400). A reply without the tool call falls back to the rules chooser.
@@ -47,10 +48,15 @@ What has been built, one line per feature, in the order it landed.
 - `tests/sim/test_day_step.py` stubs the Triggers hook so its checks on the world's events and Offers stay exact. `tests/test_triggers.py` and `tests/sim/test_triggers_world.py` test the Triggers.
 - When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.
-- A send Telegram refuses (e.g. a chat that blocked the Offer Bot) stays queued and logs a warning every 5 s until the Offer expires. Queued Offers past expiry stay `queued`; nothing expires them yet.
+- A send Telegram refuses (e.g. a chat that blocked the Offer Bot) stays queued and logs a warning every 5 s until the Offer expires. Queued Offers past expiry become `expired` on the next hour of `clock advance`.
 - `chats link` takes a Customer Bot's chat ID from the number before the colon in its bot token, so it makes no Telegram call. It would break if Telegram changed the token format.
 - Estimated Lift per segment is noisy. True Lift is 1–3 points, but each segment has about 200 past Offers per Offer Type, so its estimate has a standard error of 3–5 points. The rules chooser can pick an Offer Type on noise: on 5,000 Customers, C00042's segment gets 7.8% for a points multiplier, while its mean Ground Truth max Lift is under 1%. Across segments the estimates correlate with Ground Truth at 0.29. Shrinking each segment toward its Offer Type average, or T32's uplift learner, would help.
 - Nothing refits Estimated Lift on its own. `offer-engine generate` deletes the old fit, and the choosers use the priors until `offer-engine lift fit` runs again.
 - The first Daily Sweep on 10k Customers queues about 8,400 Offers, 7,970 of them Nudges. A Nudge costs ₹0, so the rules chooser always finds it worth sending. The frequency cap stops repeats on later days. T16's Estimated Lift or a Rule on Nudges would change this.
 - `tests/sim/test_day_step.py` stubs the Daily Sweep hook too, so its 10k-Customer day still measures the world alone (about 5 s). `tests/test_daily_sweep.py` tests the sweep, with a slow 10k test (`uv run pytest -m slow tests/test_daily_sweep.py`).
 - `streamlit.testing.v1.AppTest` drops sidebar elements after a session's first run when the app uses `st.navigation`. `tests/console/test_pages.py` reads the sidebar's simulated time from a new session. The real console shows it on every run.
+- A Customer Bot's Offers don't resolve until T24 writes their fates. Until then they only expire, and the Customer places no organic orders while one is sent or claimed.
+- A redemption order earns points on delivery (multiplied for a points Offer) but never burns points.
+- A Tester who claims and doesn't buy hears nothing. The Offer expires quietly.
+- Organic orders drawn for the send day after the send, or for a Redemption day before the Redemption, become abandoned carts. Those carts reach the cart-abandoned Trigger, which the Customer's active Offer usually blocks.
+- Dismissed Offers keep the status `dismissed` after expiry, so the Fatigue Pause still counts them.
