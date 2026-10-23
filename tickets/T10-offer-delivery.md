@@ -1,5 +1,5 @@
 # T10 — Offer delivery and Customer responses
-**Status:** BLOCKED (needs human: Tester half of the Check, tapping the buttons in Telegram)
+**Status:** DONE
 **Prereqs:** T04, T09 · **Branch:** t10-delivery
 
 ## Goal
@@ -62,6 +62,9 @@ Done as built:
 - Same run: after Stop then `/start` in one simulated minute, the agent chose No Offer, citing the opt-out as
   the latest event. Its prompt listed same-time events oldest first (`sorted(..., reverse=True)` keeps ties in
   order). `agent_chooser._recent` now reverses the recorded order, so the opt-in shows as the latest.
+- Tester half of the Check passed on 2026-10-23 after those fixes: `/start` linked the chat to C00001; the
+  card arrived; Not now marked POE-Q7ZPXC `dismissed`; `/stop` and the Stop button opted out (`opted_out`
+  events) and `/start` opted back in (`opted_in`), each with its reply.
 
 ## Tests
 - `tests/test_responses.py`: claim/dismiss/stop/restart state changes and reply texts; wrong chat; expired code;
@@ -76,7 +79,7 @@ links you to C00001): `offer-engine trigger cart-abandoned C00001` → card; tap
 
 ## Done when
 - [x] Queued Offers to chat-attached Customers are delivered as Offer Cards with three buttons
-- [ ] Claim, Not now, Stop and `/start` (opt-in) update the database by button and by text
+- [x] Claim, Not now, Stop and `/start` (opt-in) update the database by button and by text
 - [x] Outbox messages are delivered
 - [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T10: Offer delivery and Customer responses`
+- [x] Committed: `T10: Offer delivery and Customer responses`
