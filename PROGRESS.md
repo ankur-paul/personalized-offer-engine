@@ -13,6 +13,7 @@ What has been built, one line per feature, in the order it landed.
 - [T09] Decision pipeline: `decide` runs the Rules, the rules chooser, Validation and the Fallback, logs the Decision and queues the Offer. Also the Customer loader, the weekly budget, `trigger cart-abandoned`, `decisions` and `eligible --customer` (`uv run offer-engine generate --customers 200 && uv run offer-engine trigger cart-abandoned C00042 && uv run offer-engine decisions --last 5`)
 - [T12] Ground Truth: `generate` stores a hidden response formula per Customer and Offer Type in `sim_ground_truth` and a Response Class in `sim_response_class`; shares land in calibration target 9 (`uv run offer-engine generate --customers 2000 && uv run offer-engine ground-truth summary`)
 - [T11] Agent chooser: Claude picks one option or No Offer for chat-attached Customers and writes the caption and reason; Validation now runs the Caption Check, and an invalid pick or API failure falls back to the rules chooser with the agent's raw answer stored on the Decision (`uv run offer-engine generate --customers 200`, add a `chats` row for C00042, then `ANTHROPIC_API_KEY=bad uv run offer-engine trigger cart-abandoned C00042` shows `chooser=fallback`)
+- [T13] Generator at 10k scale: 10k Customers × 12 months generate in about 80 s and `simulate_day` for 10k takes under 1 s, with slow tests for both and for the calibration of a 2,000-Customer run (`time uv run offer-engine generate --customers 10000 --months 12`, `uv run pytest -m slow tests/sim/test_generate_scale.py`)
 
 ## Known issues / cuts
 
