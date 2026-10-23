@@ -15,6 +15,5 @@ What the app does now. Edit in place when a change alters what users see or can 
 ## Known limits
 
 - Nothing decides Offers yet; the only Offer the bots send is the hard-coded demo. Only the first Customer Bot in `CUSTOMER_BOTS` runs.
-- The bots have not been run against Telegram yet, so bot-to-bot delivery is unproven.
 - The demo has no Claim / Not now / Stop buttons, and Claims are logged, not stored.
 - Advancing the clock only moves the time; no events happen.

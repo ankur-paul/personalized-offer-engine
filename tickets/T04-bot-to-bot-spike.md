@@ -1,5 +1,5 @@
 # T04 — Bot-to-bot spike: Offer Card to a Customer Bot and a Tester
-**Status:** BLOCKED (needs human: run the Check with real bot tokens from `offer-engine setup`; bot-to-bot delivery is untested)
+**Status:** DONE
 **Prereqs:** T02 · **Branch:** t04-bot-spike
 
 ## Goal
@@ -54,7 +54,10 @@ Done as built:
 - `offer-engine start`: when a process exits 0 the rest keep running, and when one fails all stop. With no
   `CUSTOMER_BOTS` the simulator exits 0, so the Offer Bot still serves Testers. Both bot processes set httpx
   logging to WARNING, because httpx logs request URLs, and Telegram URLs contain the token.
-- Not run against Telegram: the agent has no bot tokens (no `.env`; T03 is blocked on the same human step).
+- Check run by hand on 2026-10-23 with real tokens: the Tester `/start` got the card and `/claim POE-DEMO01` was
+  acknowledged; after `demo-send`, @ap_customer1_bot replied `/claim POE-DEMO01`, the Offer Bot logged
+  `Claim POE-DEMO01 from bot @ap_customer1_bot` and its acknowledgement reached the Customer Bot. A second card
+  with the same code got no reply.
 
 ## Tests
 - `tests/test_offer_card.py`: `offer_terms` for every Offer Type; the PNG decodes and has the expected size; a
@@ -70,9 +73,9 @@ Claim.
 
 ## Done when
 - [x] Offer Card PNG renders terms for all five Offer Types from an `Offer`
-- [ ] A Tester `/start` receives the demo card
-- [ ] The Customer Bot receives the card from the Offer Bot and its `/claim` is acknowledged (or ticket BLOCKED per Contingency)
+- [x] A Tester `/start` receives the demo card
+- [x] The Customer Bot receives the card from the Offer Bot and its `/claim` is acknowledged (or ticket BLOCKED per Contingency)
 - [x] `offer-engine start` runs both bots
 - [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
 - [x] Committed: `T04: bot-to-bot spike with Offer Card`
-- [ ] Check run with real bot tokens (covers the two unticked items above)
+- [x] Check run with real bot tokens (covers the two unticked items above)

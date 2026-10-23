@@ -11,5 +11,4 @@ What has been built, one line per feature, in the order it landed.
 ## Known issues / cuts
 
 - `uv run ruff check .` reports 5 findings in `tickets/board.py` and `tickets/test_board.py` under ruff 0.17's default rules. `src/` and `tests/` are clean (`uv run ruff check src tests`).
-- T04's bots have not run against Telegram yet: bot-to-bot delivery from `demo-send` and the Tester `/start` path are untested until someone runs the T04 Check with real tokens.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.
