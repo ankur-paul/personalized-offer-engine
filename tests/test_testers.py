@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import random
 import re
+import sqlite3
 from dataclasses import replace
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -411,6 +412,16 @@ def test_on_pick_then_on_offers(world, cards, cards_dir, tmp_path, ids):
     update, message = fake_update(USER)
     asyncio.run(handlers.on_offers(update, fake_context(tmp_path, cards_dir)))
     assert message.replies[0][0].startswith("No offer right now: Vikram Shah is in the control group")
+
+
+def test_on_offers_while_the_database_is_busy(world, cards, cards_dir, tmp_path, ids, monkeypatch):
+    def locked(*args):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(handlers, "_request_offer", locked)
+    update, message = fake_update(USER)
+    asyncio.run(handlers.on_offers(update, fake_context(tmp_path, cards_dir)))
+    assert message.replies == [(handlers.BUSY, None)]
 
 
 def test_start_pattern_matches_text_starts():

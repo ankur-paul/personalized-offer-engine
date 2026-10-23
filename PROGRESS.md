@@ -31,6 +31,7 @@ What has been built, one line per feature, in the order it landed.
 - [T24] Customer Bots with bounded role-play: `chats link-showcase` links the frozen Persona Cards' Customers to the Customer Bots in order. All Customer Bots run in one process. On an Offer Card, Claude (`FAST_AGENT_MODEL`) rates the message's fit to the card, Ground Truth's chance moves by at most ±30% of itself, a coin flip decides, and the bot replies in character with `/claim CODE` or `/notnow CODE`. The Offer Bot now sends Customer Bots their cards by `@username` (`uv run offer-engine chats link-showcase && uv run offer-engine start`, then `uv run offer-engine trigger cart-abandoned C09823` and `clock advance --hours 9`)
 
 - [T25] Testers: `/start` to the Offer Bot shows a button per frozen Persona Card and Surprise me. A pick gives the Tester their own copy of the Customer (`<id>-t<user id>`, with 180 days of events and every finished past Offer). `/offers` runs the pipeline on request and explains a No Offer by its Binding Rule; `/whoami` and `/switch` too. `customers.population_filter()` leaves copies out of population metrics (`uv run offer-engine start`, then `/start` to the Offer Bot from your own Telegram account)
+- [T25] Decisions stay fast as live Redemptions pile up: an index on `events.offer_id` takes `budget_state` from 7 s to 0.02 s per Decision on 10k Customers a few simulated days in, so a console +1 day no longer stalls the Offer Bot (restart `uv run offer-engine start` to apply it)
 
 ## Known issues / cuts
 

@@ -38,6 +38,8 @@ PICK_AGAIN = "Pick a Customer to play."
 NO_CARDS = "No Customers are ready to play yet. Ask the marketing team to freeze the Persona Cards."
 NOT_PLAYING = "You're not playing a Customer yet. Send /start to pick one."
 UNKNOWN_PICK = "That Customer isn't available any more. Send /start to pick again."
+# A console step holds the database while it runs; the connection gives up after 10 s.
+BUSY = "The marketplace is busy moving the simulated clock. Try again in a few seconds."
 HOLDOUT = (
     "You're playing {name}, who is in the control group (Holdout). They never receive offers, so we can measure "
     "what offers change."
@@ -237,6 +239,9 @@ async def on_pick(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reply = pick(
             conn, context.matches[0].group(1), query.from_user.id, query.message.chat.id, _directory(context)
         )
+    except sqlite3.OperationalError as exc:
+        log.warning("pick from chat %s failed: %s", query.message.chat.id, exc)
+        reply = BUSY
     finally:
         conn.close()
     try:
@@ -249,9 +254,12 @@ async def on_pick(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def on_offers(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # The agent may take seconds; deciding off the event loop keeps other chats answered meanwhile.
-    reply = await asyncio.to_thread(
-        _request_offer, _db(context), update.effective_chat.id, _directory(context)
-    )
+    chat_id = update.effective_chat.id
+    try:
+        reply = await asyncio.to_thread(_request_offer, _db(context), chat_id, _directory(context))
+    except sqlite3.OperationalError as exc:
+        log.warning("/offers from chat %s failed: %s", chat_id, exc)
+        reply = BUSY
     await update.effective_message.reply_text(reply)
 
 

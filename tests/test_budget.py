@@ -133,3 +133,11 @@ def test_redemption_cost_per_offer_type():
     assert redemption_cost(OfferType.FREE_SHIPPING, {}, 1000, rules) == rules.shipping_fee
     assert redemption_cost(OfferType.POINTS_MULTIPLIER, {"multiplier": 3}, 1000, rules) == pytest.approx(50.0)
     assert redemption_cost(OfferType.NUDGE, {}, 1000, rules) == 0.0
+
+
+def test_spent_finds_each_redemptions_order_by_index(db):
+    """Every Decision computes the budget, so the order lookup must not scan all events."""
+    plan = db.execute(
+        "EXPLAIN QUERY PLAN SELECT amount FROM events e WHERE e.offer_id = 1 AND e.kind = 'order' LIMIT 1"
+    ).fetchall()
+    assert any("events_offer" in row["detail"] for row in plan)
