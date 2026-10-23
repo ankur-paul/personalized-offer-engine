@@ -1,5 +1,5 @@
 # T03 — Interactive bot setup script
-**Status:** BLOCKED (needs human: run `offer-engine setup` with real BotFather tokens and confirm the Bot-to-Bot menu path)
+**Status:** DONE
 **Prereqs:** T01 · **Branch:** t03-setup-script
 
 ## Goal
@@ -55,4 +55,4 @@ Done as built:
 - [x] Tokens are verified with `getMe` before saving
 - [x] PROGRESS.md line added; FEATURES.md mentions setup; `uv run pytest` green
 - [x] Committed: `T03: interactive bot setup script`
-- [ ] Check run with real BotFather tokens and the Bot-to-Bot menu path confirmed
+- [x] Check run with real BotFather tokens and the Bot-to-Bot menu path confirmed
