@@ -1,0 +1,85 @@
+{"caption": "Your fashion wishlist is calling: 15% off kurtas and sarees, up to ₹300.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": "pass"}
+{"caption": "Take fifteen percent off fashion, just for you.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": "pass"}
+{"caption": "The Rangrez Silk Saree you checked out is waiting. Enjoy 15% off, capped at Rs 300.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}, "featured": ["FAS013"]}, "expect": "pass"}
+{"caption": "Save up to ₹300 on fashion with 15% off.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": "pass"}
+{"caption": "Valid for 3 days: 15% off fashion.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": "pass"}
+{"caption": "Aapke favourite kurte ab 15% off pe! Max ₹300 tak bachat.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": "pass"}
+{"caption": "फैशन पर १५% की छूट, ₹300 तक", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": "pass"}
+{"caption": "Kesari Glow Sunscreen SPF50 for sunny days: 20% off beauty, up to ₹200.", "offer": {"type": "pct_category", "category": "beauty", "params": {"pct": 20, "cap": 200}, "featured": ["BEA004"]}, "expect": "pass"}
+{"caption": "₹150 off when you spend ₹1,249 or more. Your pantry favourites are waiting.", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": "pass"}
+{"caption": "Flat Rs.150/- off on orders above Rs 1249", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": "pass"}
+{"caption": "Get ₹150 off on ₹1249+ orders 🛍️", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": "pass"}
+{"caption": "Free delivery on your next order. Your cart misses you!", "offer": {"type": "free_shipping"}, "expect": "pass"}
+{"caption": "Shipping's on us this time 🚚 Restock your grocery staples.", "offer": {"type": "free_shipping"}, "expect": "pass"}
+{"caption": "Earn 2x points on everything you buy.", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": "pass"}
+{"caption": "Double points on your next order 🎉", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": "pass"}
+{"caption": "✨ 1.5x points on beauty buys ✨", "offer": {"type": "points_multiplier", "params": {"multiplier": 1.5}}, "expect": "pass"}
+{"caption": "Still thinking about the kurta in your cart? It's right where you left it.", "offer": {"type": "nudge"}, "expect": "pass"}
+{"caption": "Your Annapurna Fresh Basmati Rice 5kg is still in your cart.", "offer": {"type": "nudge", "featured": ["GRO001"]}, "expect": "pass"}
+{"caption": "The Voltix Power Bank 20000mAh you viewed is the one for long trips.", "offer": {"type": "nudge", "featured": ["ELE003"]}, "expect": "pass"}
+{"caption": "Your points are waiting for you. Treat yourself to something nice.", "offer": {"type": "nudge"}, "expect": "pass"}
+{"caption": "Get 20% off on fashion!", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "15% off, up to ₹500", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Save ₹1,499 on your next fashion haul", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Take 15 % off and save up to Rs 3000", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Twenty percent off all fashion", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Get twenty-five per cent off kurtas", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "₹15 off fashion for you", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Rs. 300 cap, 18% off", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "1,50,000 happy shoppers love this fashion deal", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Fashion pe pachaas percent off!", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "2️⃣0️⃣% off fashion 🔥", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "फैशन पर २०% की छूट", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Half price on all fashion!", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch"]}
+{"caption": "Your Rangrez Silk Saree for just ₹2,999 with 15% off", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}, "featured": ["FAS013"]}, "expect": ["number_mismatch"]}
+{"caption": "The Rangrez Cotton Kurta is now only ₹899", "offer": {"type": "nudge", "featured": ["FAS001"]}, "expect": ["number_mismatch"]}
+{"caption": "Get 10% off your cart", "offer": {"type": "nudge"}, "expect": ["number_mismatch"]}
+{"caption": "₹200 off above ₹1,249", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": ["number_mismatch"]}
+{"caption": "₹150 off on orders above ₹999", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": ["number_mismatch"]}
+{"caption": "Get 1.5k off your basket", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": ["number_mismatch"]}
+{"caption": "A hundred rupees off your next order", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": ["number_mismatch"]}
+{"caption": "Free shipping on orders above ₹499", "offer": {"type": "free_shipping"}, "expect": ["number_mismatch"]}
+{"caption": "Triple points on beauty", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": ["number_mismatch"]}
+{"caption": "Earn points x5 on every order", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": ["number_mismatch"]}
+{"caption": "Earn 3x points this weekend", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": ["number_mismatch", "deadline_mismatch"]}
+{"caption": "15% off fashion, today only!", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off ends at midnight", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off fashion until Sunday", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off, offer ends 25th October", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off fashion, valid till 31/10", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "Grab 15% off in the next 6 hours", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off fashion, ends 9pm", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off till 11:59 tonight", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "15% off fashion, valid till tomorrow", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "Sirf aaj: 15% off fashion pe", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["deadline_mismatch"]}
+{"caption": "2x points, kal tak valid", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": ["deadline_mismatch"]}
+{"caption": "Free delivery tonight 🌙", "offer": {"type": "free_shipping"}, "expect": ["deadline_mismatch"]}
+{"caption": "Raat 12 baje tak free delivery", "offer": {"type": "free_shipping"}, "expect": ["deadline_mismatch"]}
+{"caption": "Hurry! 15% off fashion", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["invented_urgency"]}
+{"caption": "Last chance for 15% off on fashion", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["invented_urgency"]}
+{"caption": "Only a few left, 15% off your saree", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["invented_urgency"]}
+{"caption": "Selling out fast! Take 15% off", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["invented_urgency"]}
+{"caption": "Get ₹150 off on ₹1249+ before it’s gone", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": ["invented_urgency"]}
+{"caption": "Jaldi karo, stock khatam hone wala hai!", "offer": {"type": "nudge"}, "expect": ["invented_urgency"]}
+{"caption": "⏳ 15% off fashion, don't miss out", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["invented_urgency"]}
+{"caption": "Limited time: 15% off fashion", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["invented_urgency"]}
+{"caption": "Only 2 left in stock!", "offer": {"type": "nudge"}, "expect": ["invented_urgency", "number_mismatch"]}
+{"caption": "15% off plus a free gift with every order 🎁", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "15% off and 5% cashback", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise", "number_mismatch"]}
+{"caption": "15% off fashion, guaranteed lowest price", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "15% off fashion + free delivery", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "15% off and an extra discount at checkout", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "15% off + extra 5% on prepaid orders", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise", "number_mismatch"]}
+{"caption": "15% off, free gift bhi milega", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "Buy one get one free on kurtas", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "15% off fashion. Free returns too.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["unoffered_promise"]}
+{"caption": "₹150 off with no minimum order", "offer": {"type": "flat_above_min", "params": {"amount": 150, "min_basket": 1249}}, "expect": ["unoffered_promise"]}
+{"caption": "Here's a special discount on your cart", "offer": {"type": "nudge"}, "expect": ["unoffered_promise"]}
+{"caption": "Use coupon code at checkout for your cart", "offer": {"type": "nudge"}, "expect": ["unoffered_promise"]}
+{"caption": "2x points + free shipping", "offer": {"type": "points_multiplier", "params": {"multiplier": 2}}, "expect": ["unoffered_promise"]}
+{"caption": "Free shipping plus bonus points", "offer": {"type": "free_shipping"}, "expect": ["unoffered_promise"]}
+{"caption": "Your style, your rules. The kurtas and sarees you browsed are right here, with 15% off fashion and savings up to ₹300. Pick the colours you loved, mix them with the jeans already in your wardrobe, and step out looking like the best version of yourself, at a price that feels right to you and your family.", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["too_long"]}
+{"caption": "   ", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["empty"]}
+{"caption": "", "offer": {"type": "nudge"}, "expect": ["empty"]}
+{"caption": "Hurry, 30% off tonight only!", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch", "deadline_mismatch", "invented_urgency"]}
+{"caption": "🚨 Last chance! 25% off + free gift, ends Friday 🚨", "offer": {"type": "pct_category", "category": "fashion", "params": {"pct": 15, "cap": 300}}, "expect": ["number_mismatch", "deadline_mismatch", "invented_urgency", "unoffered_promise"]}

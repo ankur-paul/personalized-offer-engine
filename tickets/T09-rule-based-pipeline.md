@@ -1,5 +1,5 @@
 # T09 — Rule-based decision pipeline, Decision log, cart-abandoned Trigger
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T05, T07 · **Branch:** t09-pipeline
 
 ## Goal
@@ -40,6 +40,12 @@ rule-based Offer" (PLAN §3.5, §8; "Assumed › Deciding").
 - `default_chooser` and `default_lift_estimator` are separate functions on purpose: T11 and T16 may run in
   parallel and each edits only its own function.
 - The pipeline modules never read `sim_*` tables (boundary test from T02).
+- Done as built: the Holdout Decision's Binding Rule is `holdout_pct`, the name the Rules engine records, not `holdout`.
+- Done as built: a Decision's Binding Rule is the limit on the Offer's main parameter (`pct`, `amount` or `multiplier`). Free shipping and the Nudge have none. The Check on seed 7 gives `pct_category beauty pct=8 cap=70 · chooser=rules · binding: max_pct_by_loyalty_tier · rule v0 · valid` for C00042.
+- Done as built: the rules chooser tries a grid (whole percents, ₹50 flat steps, 0.5× multipliers). Lift follows the Ground Truth curve `max Lift · (1 − e^(−depth/k))` with `max Lift` and `k` from `priors.py`. An `estimated_lift` replaces the prior's max Lift and keeps its shape. The `cap` equals the expected discount on the category's average basket, rounded up to ₹10 and clamped to its range. Expected cost = (0.10 base chance + Lift) × cost if redeemed.
+- Done as built: when the rules chooser is the primary chooser and fails Validation, it is not run again; the Decision is `fallback_failed` with `chooser=rules`. A Decision's `validation` is None when nothing was proposed or rejected. Otherwise `ok` is whether the logged Offer passed, and `failures` keeps the rejected proposal's failures (or `chooser_error: …`).
+- Done as built: `reserved` leaves out Offers past `expires_at` and non-live Offers. `spent` takes the basket from the `order` event linked by `offer_id`, else the worst-case cost.
+- Done as built: `tests/conftest.py` has `world_template` (a generated 50-Customer world built once per session) and `world` (a private copy per test).
 
 ## Tests
 - `tests/test_pipeline.py` on a 50-Customer generated fixture DB: Holdout Customer → No Offer, binding
@@ -56,8 +62,8 @@ rule-based Offer" (PLAN §3.5, §8; "Assumed › Deciding").
 `uv run offer-engine decisions --last 5` lists it.
 
 ## Done when
-- [ ] `decide` runs Rules → chooser → Validation → Fallback → log, and queues Offers
-- [ ] `default_chooser` / `default_lift_estimator` exist as separate functions
-- [ ] `offer-engine trigger cart-abandoned` and `offer-engine decisions` work
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T09: rule-based decision pipeline and cart-abandoned Trigger`
+- [x] `decide` runs Rules → chooser → Validation → Fallback → log, and queues Offers
+- [x] `default_chooser` / `default_lift_estimator` exist as separate functions
+- [x] `offer-engine trigger cart-abandoned` and `offer-engine decisions` work
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T09: rule-based decision pipeline and cart-abandoned Trigger`

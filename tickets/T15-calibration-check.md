@@ -21,6 +21,9 @@ Truth), redemption per send, 90-day repeat among new Customers, orders per activ
 lapse, margins, spend concentration, Response Class shares, festive share of GMV, points breakage, opt-out per
 message. Ranges come from that table; copy them into `calibration.py` with the target number beside each.
 Category splits are judgement calls in the source: report them but don't fail `--strict` on them.
+- Known miss from T14: Redemption per send is ~16% targeted and ~4.5% broadcast on 2,000 Customers (target 4:
+  1.5–5%, 0.1–1%). Heavy grocery buyers (7-day base near 1) cause most abandoned carts, and every Customer who buys
+  in an Offer's window redeems it. Tune T05's cart funnel or T12's base and Lift, not T14's mechanics.
 
 ## Tests
 - `tests/sim/test_calibration.py`: each metric on a tiny hand-built DB gives the expected value; pass/fail logic at

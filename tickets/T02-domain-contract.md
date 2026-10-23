@@ -1,5 +1,5 @@
 # T02 — Domain contract, SQLite store, Simulation Clock, rule versions
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T01 · **Branch:** t02-domain-contract
 
 ## Goal
@@ -64,6 +64,22 @@ against them. `offer-engine clock show` / `clock advance` work. Contract ticket 
 - Default RuleSet values: pick sensible ones (e.g. margin floor 5%, weekly budget ₹50,000, frequency cap 2 per 7
   days, send hours 9–21). Categories come from T05; `max_pct_by_category` defaults to an empty dict meaning no
   per-category cap beyond the margin floor.
+- Done as built:
+  - `domain.py` also has `BudgetMode`, `ChatKind` and `OfferSource` (`StrEnum`s for the `budget_mode`, chat
+    `kind` and Offer `source` values) and `LOYALTY_TIERS = ("bronze", "silver", "gold", "platinum")`. T05 should
+    draw tiers from it; `max_pct_by_loyalty_tier` defaults to 15/20/25/30.
+  - Other defaults: `max_flat_amount` 300, `max_points_multiplier` 3, `per_offer_cost_cap` 500,
+    `cooldown_days_after_redemption` 7, `min_days_since_signup` 1, `max_send_delay_hours` 24.
+  - `RuleSet.from_dict` fills missing keys with defaults and rejects unknown ones.
+  - Offer and Decision IDs are SQLite integers (`id: int | None`, `None` before insert). Event kinds are plain
+    strings. `Decision.validation` is `None` when nothing was proposed.
+  - Table extras: `offers.redeemed_at` (for `PastOffer`), `decisions.validation_ok` / `validation_failures`
+    (JSON), `rule_versions.created_at` (simulated) and `saved_at` (wall clock). JSON columns are noted in
+    `t02_core.sql`.
+  - `rules_store` also has `rules_at_version(conn, version)` and a `RuleVersion` record; `list_versions` is
+    newest first and doesn't list version 0.
+  - `migrate(conn, schema_dir=SCHEMA_DIR)` applies each file and its record in one transaction.
+  - `clock` commands exit with "run `offer-engine db init`" on an uninitialised database.
 
 ## Tests
 - `tests/test_domain.py`: `RuleSet` round-trips through `to_dict`/`from_dict`; enums have the listed values.
@@ -77,9 +93,9 @@ against them. `offer-engine clock show` / `clock advance` work. Contract ticket 
 → `2026-12-01 00:00` then `2026-12-02 00:00`.
 
 ## Done when
-- [ ] `domain.py` defines every type listed in Scope
-- [ ] `clock advance --days 1` moves the stored simulated time by 24 hours
-- [ ] `rules_store` saves, lists and reverts versions
-- [ ] Ground Truth boundary test exists and passes
-- [ ] PROGRESS.md line added; `uv run pytest` green
-- [ ] Committed: `T02: domain contract, SQLite store, Simulation Clock`
+- [x] `domain.py` defines every type listed in Scope
+- [x] `clock advance --days 1` moves the stored simulated time by 24 hours
+- [x] `rules_store` saves, lists and reverts versions
+- [x] Ground Truth boundary test exists and passes
+- [x] PROGRESS.md line added; `uv run pytest` green
+- [x] Committed: `T02: domain contract, SQLite store, Simulation Clock`
