@@ -20,5 +20,5 @@ What the app does now. Edit in place when a change alters what users see or can 
 - Nothing sends Offers yet (T10); they stay `queued`. The cart-abandoned Trigger is the only one, and only `offer-engine trigger` fires it. Advancing the clock only moves the time; no events happen.
 - The rules chooser uses fixed Lift guesses per Offer Type and can offer a different category from the abandoned cart. The agent sees those guesses too until Estimated Lift arrives with T16.
 - No command links a Customer to a chat yet (`chats link` comes with T10), so the agent only decides for a Customer given a `chats` row by hand. The agent's own path hasn't been run against the real API yet; tests use a fake client.
-- History has no past Offers yet, and nothing uses Ground Truth to settle outcomes until T18. 10k Customers would take over a minute to generate.
+- History has no past Offers yet, and nothing uses Ground Truth to settle outcomes until T18. Generating 10k Customers × 12 months takes about 80 seconds; one live day for them takes under a second.
 - The Caption Check accepts a caption that names the wrong category, and "today" or "this week" when not worded as a deadline.
