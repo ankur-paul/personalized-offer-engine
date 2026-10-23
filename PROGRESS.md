@@ -19,6 +19,7 @@ What has been built, one line per feature, in the order it landed.
 - [T03] `offer-engine setup` walks through creating the Offer Bot and 6–8 Customer Bots in BotFather, checks each token with `getMe`, and fills `.env` with mode 0600 (`uv run offer-engine setup`; re-run it to keep or replace values)
 - [T04] Offer Card PNG drawn from an Offer; Offer Bot sends a demo card on `/start` and acknowledges `/claim CODE`; first Customer Bot claims cards it receives; `offer-engine start` runs both bots (`uv run offer-engine start`, then `/start` to the Offer Bot; `uv run offer-engine demo-send` for the Customer Bot)
 - [T19] Event Triggers: each simulated hour, an abandoned cart, points expiring within 7 days, 45 days since the last order and a first delivery each run the decision pipeline once per underlying event (`trigger_log`), and `clock advance` counts them as `decisions.<trigger>`. `trigger cart-abandoned` uses the same de-duplication (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1 && uv run offer-engine decisions --last 10`)
+- [T16] Estimated Lift v1 per segment (loyalty tier × days since the last order × coupon user) and Offer Type, learned from the history's random past Offers against comparable no-offer moments. Once fitted, the rules chooser and the agent rank options by it (`uv run offer-engine lift fit && uv run offer-engine lift show C00042`, then `uv run offer-engine trigger cart-abandoned C00042` gives a reason with "Lift … (estimated)").
 
 ## Known issues / cuts
 
@@ -28,7 +29,7 @@ What has been built, one line per feature, in the order it landed.
 - Fatigue Pause counts from each dismissed Offer's creation time, since Offers don't record when they were dismissed.
 - Validation needs a `send_at` on every Offer. The Fallback (T09) must set one, e.g. the start of the send window.
 - The Caption Check misses a caption that names the wrong category ("15% off electronics" on a fashion Offer); the ticket has no reason code for it. It also lets "today" and "this week" through unless worded as a deadline ("today only", "this weekend"). Add rows to the tables in `caption_check.py` to tighten it.
-- The rules chooser values every category the Customer saw in the last 90 days and picks the most valuable one. A Customer who abandoned groceries can get a fashion Offer. Its Lift priors in `choosers/priors.py` are guesses until T16.
+- The rules chooser values every category the Customer saw in the last 90 days and picks the most valuable one. A Customer who abandoned groceries can get a fashion Offer. It uses the Lift priors in `choosers/priors.py` until `offer-engine lift fit` has run.
 - The budget counts a Redemption's actual cost from the `order` event linked to the Offer by `offer_id`. Without that event it counts the worst-case cost, so T18 must link the order.
 - `uv run pytest` takes about 28 s. The Ground Truth tests build a 2,000-Customer world for calibration target 9, about 18 s of that.
 - T11's live test (`uv run pytest -m live tests/test_agent_live.py`) hasn't run: it needs `ANTHROPIC_API_KEY` and `OFFER_AGENT_MODEL` in `.env`. Until T10 adds `chats link`, link a Customer to a chat by inserting a `chats` row.
@@ -41,3 +42,5 @@ What has been built, one line per feature, in the order it landed.
 - `tests/sim/test_day_step.py` stubs the Triggers hook so its checks on the world's events and Offers stay exact. `tests/test_triggers.py` and `tests/sim/test_triggers_world.py` test the Triggers.
 - When Telegram can't be reached, `offer-engine setup` treats every token as bad and keeps asking. Stop it with Ctrl-C; finished steps stay saved.
 - The demo `/start` links the Tester's chat to Customer `C00001` itself, so the latest Tester to `/start` takes over that Customer. T25 adds per-Tester copies.
+- Estimated Lift per segment is noisy. True Lift is 1–3 points, but each segment has about 200 past Offers per Offer Type, so its estimate has a standard error of 3–5 points. The rules chooser can pick an Offer Type on noise: on 5,000 Customers, C00042's segment gets 7.8% for a points multiplier, while its mean Ground Truth max Lift is under 1%. Across segments the estimates correlate with Ground Truth at 0.29. Shrinking each segment toward its Offer Type average, or T32's uplift learner, would help.
+- Nothing refits Estimated Lift on its own. `offer-engine generate` deletes the old fit, and the choosers use the priors until `offer-engine lift fit` runs again.

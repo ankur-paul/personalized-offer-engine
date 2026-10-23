@@ -213,7 +213,7 @@ def test_decision_records_the_current_rule_version(world, eligible_id):
 def test_defaults_are_the_rules_chooser_and_no_estimate(world, eligible_id):
     state = load_customer_state(world, eligible_id, NOW)
     assert pipeline.default_chooser(state) is rules_chooser.choose
-    assert pipeline.default_lift_estimator()(state, None) is None
+    assert pipeline.default_lift_estimator(world, NOW)(state, None) is None
 
 
 # --- CLI ---------------------------------------------------------------------------------------
