@@ -169,8 +169,7 @@ def session(
         at = later(at, 20, 180)
         events.append(Event(customer_id, at, "product_view", category, product.id, product.price))
 
-    cart_chance = min(0.95, CART_RATE.get(category, 0.08) * traits.buy_propensity * demand)
-    order_chance = ORDER_GIVEN_CART.get(category, 0.25)
+    cart_chance, order_chance = funnel(category, traits, demand)
     if first:
         cart_chance, order_chance = max(cart_chance, FIRST_SESSION_CART), FIRST_SESSION_ORDER_GIVEN_CART
     if rng.random() >= cart_chance:
@@ -199,6 +198,12 @@ def session(
         Event(customer_id, delivered_at, "delivered", category, product.id, amount)
     )
     return events
+
+
+def funnel(category: str, traits: Traits, demand: float) -> tuple[float, float]:
+    """(add-to-cart chance per session, order chance given a cart) in `category`. Ground Truth reuses it."""
+    cart_chance = min(0.95, CART_RATE.get(category, 0.08) * traits.buy_propensity * demand)
+    return cart_chance, ORDER_GIVEN_CART.get(category, 0.25)
 
 
 def earn_points(sim: CustomerSim, delivered: Event) -> Event:

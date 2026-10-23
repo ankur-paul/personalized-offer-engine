@@ -11,6 +11,7 @@ What has been built, one line per feature, in the order it landed.
 - [T07] Validation: `validate` recomputes the Eligible Set and reports every Rule a Proposal breaks, plus a hypothesis property test that 500 random rule-breaking Proposals never pass (`uv run pytest tests/test_validation.py tests/test_validation_property.py -q --hypothesis-show-statistics`)
 - [T08] Caption Check: rejects captions with numbers or deadlines that differ from the Offer, invented urgency, unoffered promises, over 280 characters or blank; 65 bad and 20 good captions in `tests/data/captions.jsonl` (`uv run offer-engine caption-check "Hurry, 30% off tonight only!" --offer-type pct_category --param pct=15 --param cap=300 --category fashion`)
 - [T09] Decision pipeline: `decide` runs the Rules, the rules chooser, Validation and the Fallback, logs the Decision and queues the Offer. Also the Customer loader, the weekly budget, `trigger cart-abandoned`, `decisions` and `eligible --customer` (`uv run offer-engine generate --customers 200 && uv run offer-engine trigger cart-abandoned C00042 && uv run offer-engine decisions --last 5`)
+- [T12] Ground Truth: `generate` stores a hidden response formula per Customer and Offer Type in `sim_ground_truth` and a Response Class in `sim_response_class`; shares land in calibration target 9 (`uv run offer-engine generate --customers 2000 && uv run offer-engine ground-truth summary`)
 
 ## Known issues / cuts
 
@@ -23,3 +24,4 @@ What has been built, one line per feature, in the order it landed.
 - The rules chooser values every category the Customer saw in the last 90 days and picks the most valuable one. A Customer who abandoned groceries can get a fashion Offer. Its Lift priors in `choosers/priors.py` are guesses until T16.
 - The budget counts a Redemption's actual cost from the `order` event linked to the Offer by `offer_id`. Without that event it counts the worst-case cost, so T18 must link the order.
 - Validation skips the Caption Check until T11 turns it on. The rules chooser's captions already pass it (property test in `tests/test_rules_chooser.py`).
+- `uv run pytest` takes about 28 s. The Ground Truth tests build a 2,000-Customer world for calibration target 9, about 18 s of that.

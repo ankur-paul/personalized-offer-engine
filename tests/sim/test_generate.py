@@ -10,7 +10,15 @@ from offer_engine.db import connect, load_catalog
 from offer_engine.sim.generate import history_start, run
 from offer_engine.sim.generate.history import EVENT_KINDS
 
-TABLES = ("categories", "products", "customers", "sim_customer_traits", "events")
+TABLES = (
+    "categories",
+    "products",
+    "customers",
+    "sim_customer_traits",
+    "events",
+    "sim_ground_truth",
+    "sim_response_class",
+)
 MARGIN_TARGETS = {
     "grocery": (12, 18),
     "electronics": (8, 15),
