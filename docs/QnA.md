@@ -142,3 +142,13 @@ Decided: all ~10k. The agent decides for Customers attached to a Customer Bot or
 **Q38. How does a human Tester's Claim become a Redemption?**
 Options: a Ground Truth coin flip; a "Buy now" button the Tester presses; Claims only.
 Decided: a weighted coin flip on the Customer's Ground Truth, without the agent nudge Customer Bots get. The Offer Bot then reports the simulated order. A button would let human whims into the Redemption metrics. Recorded in `docs/PLAN.md` §4.1.
+
+## Round 8: building T14
+
+**Q39. How long does a past Offer control the Customer's purchases?**
+Options: the 3-day validity window, as T14 first said; 7 days, Ground Truth's horizon.
+Decided: 7 days. Organic orders in the 7 days after the send are removed, and the Customer buys once with chance `p_buy`, at a time inside the validity window, so the purchase is the Redemption. Ground Truth's `p_buy` is a 7-day chance and T16 compares 7-day purchase rates. With a 3-day window, organic orders on days 4–7 would add about 4/7 × base to every Offer's measured Lift, most for Sure Things, so the engine would learn to target them. T18 should suppress 7 days too.
+
+**Q40. Which base does a past Offer's `p_buy` use?**
+Options: the stored Ground Truth, which reflects the Customer at the end of history; the base at the moment of the Offer.
+Decided: the base at the moment. It is recomputed from traits, whether the Customer had lapsed by then and that day's season demand; max Lift and k stay as stored, and a Sleeping Dog's negative max Lift is rescaled with the base. Otherwise Customers who lapse later look as if Offers cut their buying, and festive Offers suppress real demand.

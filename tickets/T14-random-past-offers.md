@@ -1,5 +1,5 @@
 # T14 — History with partly random past Offers and their outcomes
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T06, T12 · **Branch:** t14-past-offers
 
 ## Goal
@@ -28,19 +28,44 @@ Outcomes").
 - Store the no-offer comparison moments (moments that drew "don't send") in `sim_history_moments`
   (`schema/t14_sim_history_moments.sql`) for T16's tests only; T16 itself must learn from observable data
   (offers + events), not this table.
+- Done as built:
+  - An Offer decides purchases for 7 days after the send, not just the validity window, and `p_buy` uses the base at
+    the moment (season, lapse) via `ground_truth.with_base` (docs/QnA.md Q39, Q40, agreed with the user).
+  - One past Offer at a time per Customer: moments inside an earlier Offer's 7 days aren't drawn. Overlapping Offers
+    each drew a purchase, so cart moments showed +5 points of Lift against a true +0.5.
+  - Removed organic orders take their burn, delivery, points earned and return with them, including any still due in
+    `ctx.scheduled`. Points are then replayed in time order for every Customer whose orders changed, and loyalty
+    tiers are recomputed (`history.update_customers`). Redemption orders get a delivery, points (times the multiplier
+    for a points Offer), a points burn drawn on `coupon_affinity` and maybe a return, like organic orders.
+  - The redemption `order` carries the basket before discount (as `budget.redemption_cost` reads it) and the
+    Offer's id; a new `offer_redeemed` event carries the cost. Opt-outs write an `opted_out` event and set
+    `customers.opted_out`. Opt-out is 0.5% per message (no doubling: at most one Offer a week), dismissal 5% of
+    non-claimers.
+  - Moments: abandoned carts at their time, long gaps counted from signup and each order, broadcasts Fridays 18:00;
+    sends move into the send hours. Only moments whose 7 days end inside the history count. A % off cap and a flat
+    amount's minimum basket follow the live Rules' shapes; codes come from the seeded stream.
+  - `sim_history_moments` holds every drawn moment, with `offer_id` (NULL = don't send) and the chance of buying,
+    so the per-type test can compare Redemption with `p_buy`.
+  - Tests run on a shared 2,000-Customer world (`tests/sim/conftest.py`, also used by T12's tests) rather than
+    5,000; each Offer Type still has 4,000+ sends.
+  - Target 4 misses: on 2,000 Customers the targeted Redemption rate is ~16% and broadcast ~4.5% (targets 1.5–5%,
+    0.1–1%). Heavy grocery buyers, with a 7-day base near 1, cause most abandoned carts. Agreed with the user to
+    record the miss and leave the tuning to T15; `history summary` prints it.
+  - 2,000 Customers generate in about 18 s (T14 adds about 4 s).
 
 ## Tests
 - `tests/sim/test_past_offers.py`: no past Offer to a Holdout Customer; Redemption rate per Offer Type on a seeded
   5,000-Customer run is within ±2 points of the mean `p_buy` of recipients; Claim ≥ Redemption; redemption orders
-  carry the discount; targeted redemption rate falls in calibration target 4 (1.5–5%) overall.
+  carry the discount; targeted redemption rate falls in calibration target 4 (1.5–5%) overall. (As built: 2,000
+  Customers; target 4 is reported, not asserted. See Details.)
 
 ## Check
 `uv run offer-engine generate --customers 2000 && uv run offer-engine history summary` → table of past Offers per
 type with send counts and Claim/Redemption rates.
 
 ## Done when
-- [ ] Past Offers with `source=history_random` exist with Ground Truth outcomes
-- [ ] No Holdout Customer got a past Offer
-- [ ] `history summary` prints rates per Offer Type
-- [ ] PROGRESS.md line added; `uv run pytest` green
-- [ ] Committed: `T14: history with random past Offers`
+- [x] Past Offers with `source=history_random` exist with Ground Truth outcomes
+- [x] No Holdout Customer got a past Offer
+- [x] `history summary` prints rates per Offer Type
+- [x] PROGRESS.md line added; `uv run pytest` green
+- [x] Committed: `T14: history with random past Offers`

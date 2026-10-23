@@ -48,9 +48,15 @@ class GenContext:
 
 
 from offer_engine.sim import ground_truth
-from offer_engine.sim.generate import catalog, customers, history
+from offer_engine.sim.generate import catalog, customers, history, past_offers
 
-STEPS: list[Callable[[GenContext], None]] = [catalog.step, customers.step, history.step, ground_truth.step]
+STEPS: list[Callable[[GenContext], None]] = [
+    catalog.step,
+    customers.step,
+    history.step,
+    ground_truth.step,
+    past_offers.step,
+]
 
 # Wiped before every run, children first. Every `sim_*` table is wiped too.
 GENERATED_TABLES = ("events", "decisions", "offers", "chats", "customers", "products", "categories")

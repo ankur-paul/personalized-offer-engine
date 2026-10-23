@@ -249,7 +249,18 @@ def step(ctx: GenContext) -> None:
     while day < ctx.end:
         insert_events(ctx.conn, simulate_day(ctx, day, rng))
         day += timedelta(days=1)
+    update_customers(ctx)
+    ctx.conn.executemany(
+        "UPDATE sim_customer_traits SET churned_at = ? WHERE customer_id = ?",
+        [
+            (sim.churned_at.isoformat(timespec="seconds") if sim.churned_at else None, cid)
+            for cid, sim in ctx.state.items()
+        ],
+    )
 
+
+def update_customers(ctx: GenContext) -> None:
+    """Loyalty tier from the last year's orders, and points from `ctx.state`."""
     year_ago = (datetime.combine(ctx.end, time()) - timedelta(days=365)).isoformat()
     spend = dict(
         ctx.conn.execute(
@@ -266,13 +277,6 @@ def step(ctx: GenContext) -> None:
         rows.append((tier, sim.points_balance, expire, customer.id))
     ctx.conn.executemany(
         "UPDATE customers SET loyalty_tier = ?, points_balance = ?, points_expire_at = ? WHERE id = ?", rows
-    )
-    ctx.conn.executemany(
-        "UPDATE sim_customer_traits SET churned_at = ? WHERE customer_id = ?",
-        [
-            (sim.churned_at.isoformat(timespec="seconds") if sim.churned_at else None, cid)
-            for cid, sim in ctx.state.items()
-        ],
     )
 
 
