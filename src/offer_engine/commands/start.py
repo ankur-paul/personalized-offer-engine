@@ -8,18 +8,24 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import TextIO
+
+CONSOLE_APP = Path(__file__).resolve().parents[3] / "console" / "app.py"
 
 # (name, command). One entry per line, so tickets add their own process without conflicting.
 PROCESSES = [
     ("offer-bot", [sys.executable, "-m", "offer_engine.offer_bot.app"]),
     ("customer-bots", [sys.executable, "-m", "offer_engine.customer_sim.app"]),
+    ("console", [sys.executable, "-m", "streamlit", "run", str(CONSOLE_APP), "--server.headless", "true"]),
 ]
 STOP_TIMEOUT = 5.0
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser("start", help="run the Offer Bot and the Customer Bot simulator")
+    parser = subparsers.add_parser(
+        "start", help="run the Offer Bot, the Customer Bot simulator and the console"
+    )
     parser.set_defaults(func=run)
 
 

@@ -24,6 +24,7 @@ What has been built, one line per feature, in the order it landed.
 - [T16] Estimated Lift v1 per segment (loyalty tier × days since the last order × coupon user) and Offer Type, learned from the history's random past Offers against comparable no-offer moments. Once fitted, the rules chooser and the agent rank options by it (`uv run offer-engine lift fit && uv run offer-engine lift show C00042`, then `uv run offer-engine trigger cart-abandoned C00042` gives a reason with "Lift … (estimated)").
 - [T20] Daily Sweep: at 10:00 each simulated day the pipeline decides for every Customer not decided in the last 24 simulated hours, chat-attached ones first and the rest in a date-seeded shuffle. `pipeline.decide_many` loads the Rules, catalog and budget once, so 10k Customers take about 30 s. `clock advance` prints `sweep.offer`, `sweep.no_offer`, `sweep.skipped` and `sweep.binding.<rule>` (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1`)
 - [chore] `decide_many` loads Estimated Lift once per sweep, not once per Customer (an interaction of T16 and T20 found at merge; `uv run pytest tests/test_pipeline.py -k loads_estimated`)
+- [T21] Streamlit console: Simulation Clock page with +1 hour, +1 day and Auto mode, and a Decision log with filters and the selected row's Offer; `offer-engine start` also runs it (`uv run offer-engine generate --customers 2000 && uv run streamlit run console/app.py`, press **+1 day**, then open Decision log)
 
 ## Known issues / cuts
 
@@ -52,3 +53,4 @@ What has been built, one line per feature, in the order it landed.
 - Nothing refits Estimated Lift on its own. `offer-engine generate` deletes the old fit, and the choosers use the priors until `offer-engine lift fit` runs again.
 - The first Daily Sweep on 10k Customers queues about 8,400 Offers, 7,970 of them Nudges. A Nudge costs ₹0, so the rules chooser always finds it worth sending. The frequency cap stops repeats on later days. T16's Estimated Lift or a Rule on Nudges would change this.
 - `tests/sim/test_day_step.py` stubs the Daily Sweep hook too, so its 10k-Customer day still measures the world alone (about 5 s). `tests/test_daily_sweep.py` tests the sweep, with a slow 10k test (`uv run pytest -m slow tests/test_daily_sweep.py`).
+- `streamlit.testing.v1.AppTest` drops sidebar elements after a session's first run when the app uses `st.navigation`. `tests/console/test_pages.py` reads the sidebar's simulated time from a new session. The real console shows it on every run.

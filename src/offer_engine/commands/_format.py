@@ -42,16 +42,24 @@ def offer_terms(row: sqlite3.Row) -> str:
     return " ".join(part for part in (row["offer_type"], row["category"], params) if part)
 
 
-def decision_summary(row: sqlite3.Row) -> str:
-    """`pct_category fashion pct=12 cap=170 · chooser=rules · binding: … · rule v0 · valid`."""
+def validation_text(row: sqlite3.Row) -> str:
+    """`valid`, `invalid`, `nothing to validate` or `valid (Fallback)`."""
     if row["validation_ok"] is None:
         valid = "nothing to validate"
     else:
         valid = "valid" if row["validation_ok"] else "invalid"
     if row["chooser"] == "fallback" and row["validation_ok"]:
         valid += " (Fallback)"
+    return valid
+
+
+def decision_summary(row: sqlite3.Row) -> str:
+    """`pct_category fashion pct=12 cap=170 · chooser=rules · binding: … · rule v0 · valid`."""
     binding = row["binding_rule"] or "none"
-    return f"{offer_terms(row)} · chooser={row['chooser']} · binding: {binding} · rule v{row['rule_version']} · {valid}"
+    return (
+        f"{offer_terms(row)} · chooser={row['chooser']} · binding: {binding} · rule v{row['rule_version']}"
+        f" · {validation_text(row)}"
+    )
 
 
 def decision_details(row: sqlite3.Row) -> list[str]:

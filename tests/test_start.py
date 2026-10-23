@@ -1,6 +1,7 @@
 import io
 import sys
 import time
+from pathlib import Path
 
 from offer_engine.commands.start import PROCESSES, run_processes
 
@@ -30,9 +31,15 @@ def test_a_failing_process_stops_the_others():
     assert time.monotonic() - started < 10
 
 
-def test_start_runs_both_bots():
-    modules = [command[-1] for _, command in PROCESSES]
-    assert modules == ["offer_engine.offer_bot.app", "offer_engine.customer_sim.app"]
+def test_start_runs_both_bots_and_the_console():
+    assert [name for name, _ in PROCESSES] == ["offer-bot", "customer-bots", "console"]
+    assert [command[2] for _, command in PROCESSES[:2]] == [
+        "offer_engine.offer_bot.app",
+        "offer_engine.customer_sim.app",
+    ]
+    console = PROCESSES[2][1]
+    assert console[1:4] == ["-m", "streamlit", "run"]
+    assert Path(console[4]).is_file() and console[4].endswith("console/app.py")
 
 
 class FailingOut(io.StringIO):

@@ -1,5 +1,5 @@
 # T21 — Console: Simulation Clock controls and Decision log
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T17 · **Branch:** t21-console-clock
 
 ## Goal
@@ -21,6 +21,10 @@ Decision log with reasons and Binding Rules. M5 (PLAN §6, §2.4; ADR 0003).
 ## Details
 - The console imports `offer_engine.sim.world.day_step.advance` (entry points may import `sim`).
 - Auto mode must not double-advance if a step is still running.
+- Done as built: a lock in `console/data.py` lets one day-step run at a time per console process. A press or Auto tick while it's held does nothing and says so. Auto mode is a `st.fragment(run_every=N)` that advances only when N seconds have passed since its last step, because a full rerun also calls the fragment.
+- Done as built: `console` is a package. `app.py` puts the repo root on `sys.path`, and pytest gets it from `pythonpath = ["."]` in `pyproject.toml`. `start` runs the console as `python -m streamlit run <repo>/console/app.py --server.headless true`.
+- Done as built: `validation_text` moved out of `decision_summary` in `commands/_format.py`, so the CLI and the console word the Validation result the same way.
+- Done as built: the Check ran with `streamlit run console/app.py` on a 2,000-Customer world, not `offer-engine start`, since that needs the bot tokens in `.env`. +1 day moved the sidebar to 12-02 and listed the counts. Auto mode moved one day in 10 s. The Decision log listed 108 Decisions with reasons and Binding Rules, and a row showed its caption and status.
 
 ## Tests
 - `tests/console/test_data.py`: Decision query filters.
@@ -32,8 +36,8 @@ Decision log with reasons and Binding Rules. M5 (PLAN §6, §2.4; ADR 0003).
 Decisions page lists the day's Decisions with reasons and Binding Rules.
 
 ## Done when
-- [ ] Clock page advances by hour, day and auto mode
-- [ ] Decision log shows reason, chooser, Binding Rule, rule version and Validation result with filters
-- [ ] `offer-engine start` also starts the console
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T21: console clock controls and Decision log`
+- [x] Clock page advances by hour, day and auto mode
+- [x] Decision log shows reason, chooser, Binding Rule, rule version and Validation result with filters
+- [x] `offer-engine start` also starts the console
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T21: console clock controls and Decision log`
