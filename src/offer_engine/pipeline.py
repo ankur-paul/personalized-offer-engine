@@ -11,7 +11,7 @@ import json
 import secrets
 import sqlite3
 import string
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import replace
 from datetime import datetime, timedelta
 
@@ -20,9 +20,11 @@ from offer_engine.budget import budget_state
 from offer_engine.choosers import rules_chooser
 from offer_engine.choosers.agent_chooser import make_agent_chooser
 from offer_engine.config import load_settings
-from offer_engine.customers import load_customer_state
+from offer_engine.customers import load_customer_state, load_customer_states
 from offer_engine.db import load_catalog
 from offer_engine.domain import (
+    BudgetMode,
+    BudgetState,
     Catalog,
     Chooser,
     CustomerState,
@@ -107,6 +109,22 @@ def decide(
     version, rules = current_rules(conn)
     state = load_customer_state(conn, customer_id, now)
     budget = budget_state(conn, rules, now)
+    return _decide(conn, state, trigger, now, catalog, version, rules, budget, chooser, lift_estimator)
+
+
+def _decide(
+    conn: sqlite3.Connection,
+    state: CustomerState,
+    trigger: TriggerKind,
+    now: datetime,
+    catalog: Catalog,
+    version: int,
+    rules: RuleSet,
+    budget: BudgetState,
+    chooser: ChooserFn | None,
+    lift_estimator: LiftEstimator | None,
+) -> Decision:
+    customer_id = state.customer.id
     es = eligible_set(state, rules, budget, now, catalog)
     estimate = lift_estimator or default_lift_estimator(conn, now)
     es = replace(es, options=tuple(replace(o, estimated_lift=estimate(state, o)) for o in es.options))
@@ -252,3 +270,50 @@ def new_code() -> str:
 
 def _iso(at: datetime) -> str:
     return at.isoformat(timespec="seconds")
+
+
+# Customers whose states are loaded at once by `decide_many`.
+BATCH = 500
+
+
+def decide_many(
+    conn: sqlite3.Connection,
+    customer_ids: Iterable[str],
+    trigger: TriggerKind,
+    now: datetime,
+    *,
+    chooser: ChooserFn | None = None,
+    lift_estimator: LiftEstimator | None = None,
+) -> Iterator[Decision]:
+    """`decide` for each Customer in order, loading the catalog, Rules and budget once and states in batches.
+
+    Each Offer written is added to the budget's `reserved` as `budget_state` would count it, so later Customers
+    see what earlier ones used. Unknown IDs are skipped.
+    """
+    catalog = load_catalog(conn)
+    version, rules = current_rules(conn)
+    budget = budget_state(conn, rules, now)
+    column = "worst_case_cost" if rules.budget_mode == BudgetMode.WORST_CASE else "expected_cost"
+    ids = list(customer_ids)
+    for i in range(0, len(ids), BATCH):
+        batch = ids[i : i + BATCH]
+        states = load_customer_states(conn, batch, now)
+        for customer_id in batch:
+            if customer_id not in states:
+                continue
+            d = _decide(
+                conn,
+                states[customer_id],
+                trigger,
+                now,
+                catalog,
+                version,
+                rules,
+                budget,
+                chooser,
+                lift_estimator,
+            )
+            if d.offer_id is not None:
+                cost = conn.execute(f"SELECT {column} FROM offers WHERE id = ?", (d.offer_id,)).fetchone()[0]
+                budget = replace(budget, reserved=budget.reserved + cost)
+            yield d

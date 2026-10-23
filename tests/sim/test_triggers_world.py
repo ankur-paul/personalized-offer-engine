@@ -13,6 +13,9 @@ def test_three_days_of_the_world_fire_decisions_through_the_triggers(tmp_path):
     report = day_step.advance(conn, 72)
 
     logged = Counter(row[0] for row in conn.execute("SELECT trigger FROM decisions"))
+    # The Daily Sweep (T20) decides too, under its own counts.
+    swept = logged.pop("daily_sweep")
+    assert swept == report.counts["sweep.offer"] + report.counts["sweep.no_offer"] > 0
     assert logged["cart_abandoned"] > 0 and logged["long_gap"] > 0
     assert {f"decisions.{kind}": n for kind, n in logged.items()} == {
         k: v for k, v in report.counts.items() if k.startswith("decisions.")

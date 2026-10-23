@@ -64,6 +64,8 @@ def test_cli_advance_prints_the_days_counts(clean_env, capsys):
     date_line, counts = capsys.readouterr().out.splitlines()
     assert date_line == "2026-12-02 00:00"
     assert counts.startswith("sessions ") and "product_views" in counts
+    # The Daily Sweep ran at 10:00: its outcomes come before its Binding Rules.
+    assert counts.index("sweep.offer") < counts.index("sweep.no_offer") < counts.index("sweep.binding.")
 
 
 def test_cli_needs_db_init(clean_env):
