@@ -47,7 +47,23 @@ def test_cli_show_and_advance(clean_env, capsys):
     assert main(["clock", "advance", "--hours", "6"]) == 0
     assert main(["clock", "show"]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[1:] == ["2026-12-01 00:00", "2026-12-02 00:00", "2026-12-02 06:00", "2026-12-02 06:00"]
+    assert lines[1:] == [
+        "2026-12-01 00:00",
+        "2026-12-02 00:00",
+        "nothing happened",
+        "2026-12-02 06:00",
+        "nothing happened",
+        "2026-12-02 06:00",
+    ]
+
+
+def test_cli_advance_prints_the_days_counts(clean_env, capsys):
+    assert main(["generate", "--customers", "60", "--months", "2"]) == 0
+    capsys.readouterr()
+    assert main(["clock", "advance", "--days", "1", "--seed", "3"]) == 0
+    date_line, counts = capsys.readouterr().out.splitlines()
+    assert date_line == "2026-12-02 00:00"
+    assert counts.startswith("sessions ") and "product_views" in counts
 
 
 def test_cli_needs_db_init(clean_env):

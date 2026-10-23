@@ -14,6 +14,7 @@ What has been built, one line per feature, in the order it landed.
 - [T12] Ground Truth: `generate` stores a hidden response formula per Customer and Offer Type in `sim_ground_truth` and a Response Class in `sim_response_class`; shares land in calibration target 9 (`uv run offer-engine generate --customers 2000 && uv run offer-engine ground-truth summary`)
 - [T11] Agent chooser: Claude picks one option or No Offer for chat-attached Customers and writes the caption and reason; Validation now runs the Caption Check, and an invalid pick or API failure falls back to the rules chooser with the agent's raw answer stored on the Decision (`uv run offer-engine generate --customers 200`, add a `chats` row for C00042, then `ANTHROPIC_API_KEY=bad uv run offer-engine trigger cart-abandoned C00042` shows `chooser=fallback`)
 - [T13] Generator at 10k scale: 10k Customers × 12 months generate in about 80 s and `simulate_day` for 10k takes under 1 s, with slow tests for both and for the calibration of a 2,000-Customer run (`time uv run offer-engine generate --customers 10000 --months 12`, `uv run pytest -m slow tests/sim/test_generate_scale.py`)
+- [T17] Live world day-step: `clock advance` runs organic events for every Customer hour by hour, delivers history's pending orders, marks Offers to Customers without a chat `sent` at `send_at`, and calls the outcomes, Triggers and Daily Sweep hooks (no-ops until T18–T20). One day for 10k Customers takes about 1.5 s (`uv run offer-engine generate --customers 10000 && uv run offer-engine clock advance --days 1`, `uv run pytest tests/sim/test_day_step.py`)
 
 ## Known issues / cuts
 
@@ -28,3 +29,4 @@ What has been built, one line per feature, in the order it landed.
 - `uv run pytest` takes about 28 s. The Ground Truth tests build a 2,000-Customer world for calibration target 9, about 18 s of that.
 - T11's live test (`uv run pytest -m live tests/test_agent_live.py`) hasn't run: it needs `ANTHROPIC_API_KEY` and `OFFER_AGENT_MODEL` in `.env`. Until T10 adds `chats link`, link a Customer to a chat by inserting a `chats` row.
 - The agent chooser doesn't use forced `tool_choice` (current models reject it with a 400). A reply without the tool call falls back to the rules chooser.
+- `clock advance` on a 10k-Customer world gives about 2,600 sessions and 46 orders a day in early December, lower than T17's example. The history model leaves many Customers lapsed after a year; T15 calibrates it.
