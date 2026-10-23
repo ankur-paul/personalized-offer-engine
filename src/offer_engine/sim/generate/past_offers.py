@@ -38,7 +38,6 @@ from offer_engine.pipeline import CODE_ALPHABET, CODE_PREFIX
 from offer_engine.rules import MIN_CAP, in_holdout, offer_cost
 from offer_engine.sim import ground_truth
 from offer_engine.sim.generate.history import (
-    BASKET_SIGMA,
     DELIVERY_DAYS,
     POINT_VALUE,
     POINTS_BURN_MAX_SHARE,
@@ -53,6 +52,7 @@ from offer_engine.sim.generate.history import (
     season,
     update_customers,
 )
+from offer_engine.sim.world.offer_economics import draw_basket
 
 if TYPE_CHECKING:
     from offer_engine.domain import Product
@@ -358,9 +358,8 @@ def _redemption(
     """The order an Offer is redeemed on, with its delivery, points earned (multiplied for a points Offer), maybe
     a points burn and a return, drawn as an organic order's are. Points events go to the replay."""
     category = product.category
-    basket = ctx.catalog.categories[category].avg_basket * ctx.traits[cid].basket_size
-    basket = max(product.price, basket * rng.lognormal(-(BASKET_SIGMA**2) / 2, BASKET_SIGMA))
-    basket = float(round(max(basket, params.get("min_basket", 0.0))))
+    mean_basket = ctx.catalog.categories[category].avg_basket * ctx.traits[cid].basket_size
+    basket = draw_basket(rng, mean_basket, product.price, params.get("min_basket", 0.0))
     cost = redemption_cost(offer_type, params, basket, RULES)
     delivered_at = at + timedelta(days=DELIVERY_DAYS)
     points = int(basket * POINTS_PER_RUPEE * params.get("multiplier", 1.0))
