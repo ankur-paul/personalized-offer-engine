@@ -12,8 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from offer_engine import clock, pipeline, testers
-from offer_engine.customers import population_filter
+from offer_engine.customers import load_customer_state, population_filter
 from offer_engine.domain import RuleSet
+from offer_engine.lift.segment_lift import segment_of
 from offer_engine.offer_bot import responses
 from offer_engine.offer_bot.handlers import testers as handlers
 from offer_engine.personas import PersonaCard, save
@@ -99,7 +100,7 @@ def test_copy_shares_the_sources_holdout(world, ids):
         assert in_holdout(cid, 10.0) == in_holdout(source, 10.0)
 
 
-def test_copy_gets_the_last_180_days_of_events_and_finished_offers(world, ids):
+def test_copy_gets_the_last_180_days_of_events(world, ids):
     cid = testers.create_tester_copy(world, ids.outside, USER)
     since = (NOW - timedelta(days=180)).isoformat()
     window = "customer_id = ? AND at >= ? AND at <= ?"
@@ -108,17 +109,21 @@ def test_copy_gets_the_last_180_days_of_events_and_finished_offers(world, ids):
     )
     assert count(world, "SELECT COUNT(*) FROM events WHERE customer_id = ? AND at < ?", cid, since) == 0
 
+
+def test_copy_gets_every_past_offer_whatever_its_age(world, ids):
+    """The pipeline reads every past Offer (coupon-user segment, caps, the agent's prompt), not 180 days of them."""
+    cid = testers.create_tester_copy(world, ids.outside, USER)
     copied = world.execute("SELECT * FROM offers WHERE customer_id = ? ORDER BY id", (cid,)).fetchall()
     originals = world.execute(
-        "SELECT * FROM offers WHERE customer_id = ? AND created_at >= ?"
-        " AND status IN ('redeemed', 'expired', 'dismissed', 'withdrawn') ORDER BY id",
-        (ids.outside, since),
+        "SELECT * FROM offers WHERE customer_id = ? AND created_at <= ? ORDER BY id",
+        (ids.outside, NOW.isoformat()),
     ).fetchall()
+    assert min(o["created_at"] for o in originals) < (NOW - timedelta(days=180)).isoformat()
     assert copied and len(copied) == len(originals)
     for new, old in zip(copied, originals, strict=True):
         assert new["code"] != old["code"] and new["code"].startswith("POE-")
-        assert [new[k] for k in ("offer_type", "status", "created_at", "redeemed_at")] == [
-            old[k] for k in ("offer_type", "status", "created_at", "redeemed_at")
+        assert [new[k] for k in ("offer_type", "status", "created_at", "expires_at", "redeemed_at")] == [
+            old[k] for k in ("offer_type", "status", "created_at", "expires_at", "redeemed_at")
         ]
     # Events point at the copy's own Offers, never the source's.
     mine = {row["id"] for row in copied}
@@ -131,15 +136,30 @@ def test_copy_gets_the_last_180_days_of_events_and_finished_offers(world, ids):
     assert linked and linked <= mine
 
 
+def test_copy_has_the_sources_lift_segment(world, ids):
+    cid = testers.create_tester_copy(world, ids.outside, USER)
+    source, copy = (load_customer_state(world, c, NOW) for c in (ids.outside, cid))
+    assert segment_of(copy, NOW) == segment_of(source, NOW)
+    assert segment_of(source, NOW)[2], "the fixture Customer should be a coupon user"
+
+
 def test_open_offers_stay_with_the_source(world, ids):
     world.execute(
-        "UPDATE offers SET status = 'claimed', created_at = ? WHERE id = (SELECT MAX(id) FROM offers"
+        "UPDATE offers SET status = 'claimed', created_at = ?, expires_at = ? WHERE id = (SELECT MAX(id) FROM offers"
         " WHERE customer_id = ?)",
-        ((NOW - timedelta(days=1)).isoformat(), ids.outside),
+        ((NOW - timedelta(days=1)).isoformat(), (NOW + timedelta(days=2)).isoformat(), ids.outside),
     )
     world.commit()
     cid = testers.create_tester_copy(world, ids.outside, USER)
-    assert count(world, "SELECT COUNT(*) FROM offers WHERE customer_id = ? AND status = 'claimed'", cid) == 0
+    open_since = (NOW - timedelta(days=1)).isoformat()
+    assert (
+        count(world, "SELECT COUNT(*) FROM offers WHERE customer_id = ? AND created_at = ?", cid, open_since)
+        == 0
+    )
+    assert (
+        count(world, "SELECT COUNT(*) FROM offers WHERE customer_id = ?", cid)
+        == count(world, "SELECT COUNT(*) FROM offers WHERE customer_id = ?", ids.outside) - 1
+    )
 
 
 def test_a_copy_cannot_be_copied_and_unknown_customers_raise(world, ids):

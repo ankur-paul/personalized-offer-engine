@@ -2,8 +2,9 @@
 Testers playing the same Customer don't use up each other's caps.
 
 A copy is `<id>-t<telegram user id>` with `is_tester_copy = 1`. It holds the source's Customer row (points
-included), its last 180 days of events and its finished Offers from those days, so the engine decides for it as it
-would for the source. Open Offers stay behind: their outcomes belong to the source. Copies have no `sim_*` rows:
+included), its last 180 days of events and every past Offer that is finished or expired, whatever its age, since the
+pipeline reads all of them (`customers.load_customer_states`). So the engine decides for the copy as it would for the
+source. Offers still open stay behind: their outcomes belong to the source. Copies have no `sim_*` rows:
 they do nothing organic (T17), and their outcomes use the source's Ground Truth through `source_customer_id` (T18).
 
 A chat plays one Customer at a time. The copy a Tester switches away from is opted out, so nothing keeps sending
@@ -20,7 +21,8 @@ from offer_engine.customers import EVENT_DAYS
 from offer_engine.domain import ChatKind, OfferStatus
 from offer_engine.pipeline import new_code
 
-# Offers that can't change any more, so a copy may carry them without inheriting an outcome.
+# Offers that can't change any more, so a copy may carry them without inheriting an outcome. An Offer past its
+# expiry is finished too, whatever its status says.
 FINISHED = (OfferStatus.REDEEMED, OfferStatus.EXPIRED, OfferStatus.DISMISSED, OfferStatus.WITHDRAWN)
 
 
@@ -73,9 +75,9 @@ def _copy(conn: sqlite3.Connection, source: str, cid: str, now: datetime) -> Non
     columns = _columns(conn, "offers", skip={"id", "code", "customer_id"})
     marks = ",".join("?" * len(FINISHED))
     rows = conn.execute(
-        f"SELECT id FROM offers WHERE customer_id = ? AND created_at >= ? AND created_at <= ?"
-        f" AND status IN ({marks}) ORDER BY id",
-        (source, since, at_now, *FINISHED),
+        f"SELECT id FROM offers WHERE customer_id = ? AND created_at <= ?"
+        f" AND (status IN ({marks}) OR expires_at <= ?) ORDER BY id",
+        (source, at_now, *FINISHED, at_now),
     ).fetchall()
     for (old_id,) in rows:
         while True:

@@ -33,7 +33,7 @@ QnA Q10, Q16, Q38; "Assumed › Outcomes").
 - Redemption messages come from T18 via the outbox.
 - Done as built: there is no `sim.testers.copy_hidden`. T17 and T18 had already decided that copies have no `sim_*`
   rows: they draw no organic events, and their outcomes use the source's Ground Truth through `source_customer_id`.
-  The copy also carries the source's finished Offers from the last 180 days, with new codes (QnA Q42). Switching opts
+  The copy also carries every past Offer that is finished or expired, whatever its age, with new codes (QnA Q42). Switching opts
   the old copy out and withdraws its queued Offers, so the Daily Sweep stops sending to a copy nobody plays; picking
   it again opts it back in. The pick reply shows the clock's date instead of a fixed 2 Dec 2026, and `/offers` says
   when an Offer goes out if the send window hasn't opened. `population_filter(alias)` is a function; the filters
