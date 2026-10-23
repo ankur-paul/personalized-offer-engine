@@ -166,14 +166,21 @@ def test_points_offer_multiplies_the_points_earned(conn):
 # --- The history they leave --------------------------------------------------------------------
 
 
-def test_an_offer_decides_purchases_for_7_days(conn):
-    """No organic order in the 7 days after a send: the Offer's outcome replaced them."""
+def test_an_offer_decides_whether_the_customer_buys_in_7_days(conn):
+    """No organic order between a send and its Redemption, or in the 7 days after a send that wasn't redeemed."""
     query = (
         "SELECT COUNT(*) FROM offers o JOIN events e ON e.customer_id = o.customer_id AND e.kind = 'order'"
-        " AND e.offer_id IS NULL AND e.at >= o.send_at AND e.at < strftime('%Y-%m-%dT%H:%M:%S', o.send_at, '+7 days')"
+        " AND e.offer_id IS NULL AND e.at >= o.send_at"
+        " AND e.at < COALESCE(o.redeemed_at, strftime('%Y-%m-%dT%H:%M:%S', o.send_at, '+7 days'))"
         " WHERE o.source = 'history_random'"
     )
     assert conn.execute(query).fetchone()[0] == 0
+    kept = (
+        "SELECT COUNT(*) FROM offers o JOIN events e ON e.customer_id = o.customer_id AND e.kind = 'order'"
+        " AND e.offer_id IS NULL AND e.at > o.redeemed_at"
+        " AND e.at < strftime('%Y-%m-%dT%H:%M:%S', o.send_at, '+7 days')"
+    )
+    assert conn.execute(kept).fetchone()[0] > 0  # a Redeemer's later orders stay
 
 
 def test_points_events_replay_to_each_balance(conn):

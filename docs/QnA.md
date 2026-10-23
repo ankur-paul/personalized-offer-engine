@@ -152,3 +152,5 @@ Decided: 7 days. Organic orders in the 7 days after the send are removed, and th
 **Q40. Which base does a past Offer's `p_buy` use?**
 Options: the stored Ground Truth, which reflects the Customer at the end of history; the base at the moment of the Offer.
 Decided: the base at the moment. It is recomputed from traits, whether the Customer had lapsed by then and that day's season demand; max Lift and k stay as stored, and a Sleeping Dog's negative max Lift is rescaled with the base. Otherwise Customers who lapse later look as if Offers cut their buying, and festive Offers suppress real demand.
+
+Refined while building T14: a Customer who buys keeps the organic orders after the Redemption. Only a Customer who doesn't buy loses the whole 7 days. T16's 7-day "bought at least once" rate still equals `p_buy`, and heavy buyers keep their volume: removing all 7 days took orders per buyer from 4.9 to 3.8, below calibration target 5a.

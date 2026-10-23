@@ -7,9 +7,10 @@ Only moments whose 7 days after the send end inside the history count, so every 
 Customer has one past Offer at a time: moments inside an earlier Offer's 7 days aren't drawn. Overlapping Offers
 would each draw a purchase, so a Customer would buy more often than any Offer's `p_buy` says.
 
-An Offer decides the Customer's purchases for 7 days after the send, Ground Truth's horizon (docs/QnA.md Q39):
-organic orders in that span are removed with everything that followed them, and the Customer buys once with chance
-`p_buy` inside the validity window, which is the Redemption. `p_buy` uses the base at the moment (Q40). Points are
+An Offer decides whether the Customer buys in the 7 days after the send, Ground Truth's horizon (docs/QnA.md Q39).
+With chance `p_buy` they buy inside the validity window, which is the Redemption; organic orders between the send
+and the Redemption are removed, and later ones stay. Otherwise every organic order in the 7 days is removed. Each
+removed order takes everything that followed it. `p_buy` uses the base at the moment (Q40). Points are
 then replayed for the Customers whose orders changed, so balances and expiries match the new orders.
 
 A redemption `order` carries the basket before discount and the Offer's id; its `offer_redeemed` event carries the
@@ -129,6 +130,7 @@ def step(ctx: GenContext) -> None:
         churned_at = ctx.state[customer.id].churned_at
         bases: dict[tuple[bool, date], float] = {}
         sends: list[datetime] = []
+        spans: list[tuple[datetime, datetime]] = []  # where organic orders give way to the Offer's outcome
         opted_out_at = None
         for moment in found:
             send_at = _send_time(moment.at)
@@ -173,6 +175,7 @@ def step(ctx: GenContext) -> None:
                 status = OfferStatus.DISMISSED
                 new_events.append(event(_between(rng, send_at, expires_at), "offer_dismissed"))
 
+            spans.append((send_at, redeemed_at or send_at + HORIZON))
             category = moment.category if offer_type == OfferType.PCT_CATEGORY else None
             worst, if_redeemed = offer_cost(offer_type, category, params, ctx.catalog, RULES)
             redeem_chance = min(max(BASE_BUY_CHANCE + lift_at(offer_type, depth), 0.0), 1.0)
@@ -181,7 +184,6 @@ def step(ctx: GenContext) -> None:
                 + (_iso(moment.at), _iso(send_at), _iso(expires_at), worst, if_redeemed * redeem_chance)
                 + (str(status), _iso(redeemed_at) if redeemed_at else None)
             )
-        spans = [(s, s + HORIZON) for s in sends]
         removed += [(customer.id, o) for o in orders if any(lo <= o[1] < hi for lo, hi in spans)]
 
     ctx.conn.executemany(

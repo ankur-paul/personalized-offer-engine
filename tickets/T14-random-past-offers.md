@@ -29,8 +29,10 @@ Outcomes").
   (`schema/t14_sim_history_moments.sql`) for T16's tests only; T16 itself must learn from observable data
   (offers + events), not this table.
 - Done as built:
-  - An Offer decides purchases for 7 days after the send, not just the validity window, and `p_buy` uses the base at
-    the moment (season, lapse) via `ground_truth.with_base` (docs/QnA.md Q39, Q40, agreed with the user).
+  - An Offer decides whether the Customer buys in the 7 days after the send, not just in the validity window, and
+    `p_buy` uses the base at the moment (season, lapse) via `ground_truth.with_base` (docs/QnA.md Q39, Q40, agreed
+    with the user). A Redeemer keeps the organic orders after the Redemption; a non-buyer loses all 7 days' orders.
+    Removing all 7 days for everyone took orders per buyer from 4.9 to 3.8, below target 5a; now 4.7.
   - One past Offer at a time per Customer: moments inside an earlier Offer's 7 days aren't drawn. Overlapping Offers
     each drew a purchase, so cart moments showed +5 points of Lift against a true +0.5.
   - Removed organic orders take their burn, delivery, points earned and return with them, including any still due in
@@ -51,7 +53,7 @@ Outcomes").
   - Target 4 misses: on 2,000 Customers the targeted Redemption rate is ~16% and broadcast ~4.5% (targets 1.5–5%,
     0.1–1%). Heavy grocery buyers, with a 7-day base near 1, cause most abandoned carts. Agreed with the user to
     record the miss and leave the tuning to T15; `history summary` prints it.
-  - 2,000 Customers generate in about 18 s (T14 adds about 4 s).
+  - 2,000 Customers generate in about 18 s (T14 adds about 4 s); 10k in about 100 s.
 
 ## Tests
 - `tests/sim/test_past_offers.py`: no past Offer to a Holdout Customer; Redemption rate per Offer Type on a seeded
