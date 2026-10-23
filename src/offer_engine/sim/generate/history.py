@@ -36,7 +36,7 @@ EVENT_KINDS = (
 )
 
 # Funnel per category: add-to-cart chance per session (scaled by buy_propensity) and order chance given a cart.
-CART_RATE = {"grocery": 0.13, "electronics": 0.03, "fashion": 0.05, "beauty": 0.07, "home": 0.035}
+CART_RATE = {"grocery": 0.115, "electronics": 0.026, "fashion": 0.044, "beauty": 0.062, "home": 0.031}
 ORDER_GIVEN_CART = {"grocery": 0.30, "electronics": 0.14, "fashion": 0.17, "beauty": 0.24, "home": 0.16}
 RETURN_RATE = {"grocery": 0.01, "electronics": 0.06, "fashion": 0.20, "beauty": 0.04, "home": 0.08}
 BASKET_SIGMA = 0.45
@@ -58,12 +58,14 @@ POINTS_PER_RUPEE = 0.1  # 1 point per ₹10, 2.5% back
 SIGNUP_BONUS = 100
 POINTS_VALIDITY = timedelta(days=180)
 POINTS_BURN_MIN = 50
-POINTS_BURN_MAX_SHARE = 0.2  # points cover at most 20% of an order
+POINTS_BURN_MAX_SHARE = 0.3  # points cover at most 30% of an order
+BURN_FLOOR = 0.4  # every Customer burns at least this often when they can; coupon_affinity adds the rest
+WELCOME_BURN = 0.65  # in a Customer's first NEW_CUSTOMER_DAYS, the least chance of burning points on an order
 POINT_VALUE = RuleSet().point_value
 
 # Diwali 2026: festive window mid-Sep to end of Oct, peak sale week 1–7 Nov (month, day).
 FESTIVE = ((9, 15), (10, 31), 1.05)
-PEAK_WEEK = ((11, 1), (11, 7), 3.6)
+PEAK_WEEK = ((11, 1), (11, 7), 4.0)
 WEEKEND = 1.1
 
 # Session start hour weights, evening-heavy.
@@ -133,9 +135,12 @@ def simulate_day(ctx: GenContext, day: date, rng: np.random.Generator) -> list[E
         if first:
             starts.append(customer.signup_at)
             events.append(signup_bonus(ctx.state[customer.id], customer.id, customer.signup_at))
+        welcome = (day - customer.signup_at.date()).days < NEW_CUSTOMER_DAYS
         for start in sorted(starts):
             is_signup = first and start == customer.signup_at
-            events.extend(session(ctx, customer.id, start, last_second, by_category, demand, rng, is_signup))
+            events.extend(
+                session(ctx, customer.id, start, last_second, by_category, demand, rng, is_signup, welcome)
+            )
         events.extend(expire_points(ctx.state[customer.id], customer.id, last_second))
 
     events.sort(key=lambda e: e.at)
@@ -151,6 +156,7 @@ def session(
     demand: float,
     rng: np.random.Generator,
     first: bool,
+    welcome: bool = False,
 ) -> list[Event]:
     """One visit, ending in nothing, an abandoned cart or an order. Times never pass `latest` (end of day)."""
 
@@ -191,7 +197,7 @@ def session(
     events.append(order)
     sim = ctx.state[customer_id]
     events.extend(expire_points(sim, customer_id, at))
-    if sim.points_balance >= POINTS_BURN_MIN and rng.random() < traits.coupon_affinity:
+    if sim.points_balance >= POINTS_BURN_MIN and rng.random() < burn_chance(traits, welcome):
         burned = min(sim.points_balance, int(amount * POINTS_BURN_MAX_SHARE / POINT_VALUE))
         sim.points_balance -= burned
         events.append(Event(customer_id, at, "points_burned", category, amount=float(burned)))
@@ -206,6 +212,12 @@ def funnel(category: str, traits: Traits, demand: float) -> tuple[float, float]:
     """(add-to-cart chance per session, order chance given a cart) in `category`. Ground Truth reuses it."""
     cart_chance = min(0.95, CART_RATE.get(category, 0.08) * traits.buy_propensity * demand)
     return cart_chance, ORDER_GIVEN_CART.get(category, 0.25)
+
+
+def burn_chance(traits: Traits, welcome: bool = False) -> float:
+    """Chance of burning points on an order, when the balance allows. `welcome`: in the Customer's first days."""
+    chance = BURN_FLOOR + (1 - BURN_FLOOR) * traits.coupon_affinity
+    return max(chance, WELCOME_BURN) if welcome else chance
 
 
 def earn_points(sim: CustomerSim, delivered: Event) -> Event:

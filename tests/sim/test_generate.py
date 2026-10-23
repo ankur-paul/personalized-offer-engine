@@ -61,6 +61,15 @@ def test_same_seed_gives_identical_database(world, tmp_path):
     assert table_hashes(again) == table_hashes(world)
 
 
+def test_rerun_after_a_trigger_fired(tmp_path):
+    conn = connect(tmp_path / "fired.db")
+    run(conn, n_customers=20, months=2, seed=3)
+    conn.execute("INSERT INTO trigger_log VALUES ('C00001', 'cart_abandoned', 'k', '2026-12-01T01:00:00')")
+    conn.commit()
+    run(conn, n_customers=20, months=2, seed=3)
+    assert conn.execute("SELECT COUNT(*) FROM trigger_log").fetchone()[0] == 0
+
+
 def test_other_seed_differs(world, tmp_path):
     other = connect(tmp_path / "other.db")
     run(other, n_customers=150, months=12, seed=8)
