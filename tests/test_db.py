@@ -90,3 +90,23 @@ def test_load_catalog(conn):
 def test_foreign_keys_enforced(conn):
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("INSERT INTO products VALUES ('P001', 'Kurta', 'no_such_category', 899.0)")
+
+
+def test_connect_closes_the_connection_when_setup_fails(tmp_path, monkeypatch):
+    from offer_engine import db
+
+    closed = []
+
+    class Broken(sqlite3.Connection):
+        def execute(self, sql, *args):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        def close(self):
+            closed.append(True)
+            super().close()
+
+    real_connect = sqlite3.connect
+    monkeypatch.setattr(db.sqlite3, "connect", lambda *a, **k: real_connect(*a, factory=Broken, **k))
+    with pytest.raises(sqlite3.OperationalError):
+        db.connect(tmp_path / "x.db")
+    assert closed == [True]

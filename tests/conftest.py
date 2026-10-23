@@ -77,3 +77,49 @@ def world(world_template, tmp_path):
     connection = connect(path)
     yield connection
     connection.close()
+
+
+@pytest.fixture
+def add_offer(conn):
+    """Insert a minimal Offer, creating its Customer (and chat, when `chat_id` is given) if missing. Returns the
+    Offer's id. Times default to around 1 Dec 2026, with expiry at 4 Dec 10:00."""
+    from datetime import datetime
+
+    def add(
+        code: str = "POE-AB12CD",
+        customer_id: str = "C00042",
+        chat_id: int | None = 4242,
+        status: str = "sent",
+        send_at: datetime = datetime(2026, 12, 1, 10, 0),
+        expires_at: datetime = datetime(2026, 12, 4, 10, 0),
+        caption: str = "Your fashion picks are waiting.",
+    ) -> int:
+        conn.execute(
+            "INSERT OR IGNORE INTO customers (id, signup_at, city_tier, device, channel, loyalty_tier)"
+            " VALUES (?, '2026-01-01T00:00:00', 1, 'android', 'organic', 'silver')",
+            (customer_id,),
+        )
+        if chat_id is not None:
+            conn.execute(
+                "INSERT OR IGNORE INTO chats (customer_id, chat_id, kind) VALUES (?, ?, 'bot')",
+                (customer_id, chat_id),
+            )
+        cursor = conn.execute(
+            "INSERT INTO offers (code, customer_id, offer_type, category, params, created_at, send_at, expires_at,"
+            " caption, rule_version, worst_case_cost, expected_cost, status, source)"
+            " VALUES (?, ?, 'pct_category', 'fashion', '{\"pct\": 15.0, \"cap\": 300.0}', ?, ?, ?, ?, 1, 300, 60,"
+            " ?, 'live')",
+            (
+                code,
+                customer_id,
+                send_at.isoformat(),
+                send_at.isoformat(),
+                expires_at.isoformat(),
+                caption,
+                status,
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+    return add

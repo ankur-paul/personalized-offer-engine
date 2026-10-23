@@ -29,9 +29,18 @@ def run(args: argparse.Namespace) -> int:
 
 def _pump(name: str, stream: TextIO, out: TextIO, lock: threading.Lock) -> None:
     for line in stream:
-        with lock:
-            out.write(f"[{name}] {line}")
+        _write(out, lock, f"[{name}] {line}")
+
+
+def _write(out: TextIO, lock: threading.Lock, text: str) -> None:
+    """Write and flush, dropping the text if `out` fails (e.g. a full disk). A pump that stopped reading would
+    leave its process blocked on a full pipe."""
+    with lock:
+        try:
+            out.write(text)
             out.flush()
+        except (OSError, ValueError):
+            pass
 
 
 def _stop(procs: list[subprocess.Popen]) -> None:
@@ -74,8 +83,7 @@ def run_processes(processes: list[tuple[str, list[str]]], out: TextIO = sys.stdo
                 if status is None:
                     continue
                 running.remove(proc)
-                with lock:
-                    out.write(f"[start] {names[proc.pid]} exited with code {status}\n")
+                _write(out, lock, f"[start] {names[proc.pid]} exited with code {status}\n")
                 if status != 0:
                     code = status
                     running = []

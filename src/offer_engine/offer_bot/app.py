@@ -12,6 +12,8 @@ from offer_engine.config import Settings
 # One entry per line, so tickets add or replace their own line without conflicting.
 HANDLER_MODULES = [
     "offer_engine.offer_bot.handlers.demo",
+    "offer_engine.offer_bot.handlers.responses",
+    "offer_engine.offer_bot.delivery",
 ]
 
 
