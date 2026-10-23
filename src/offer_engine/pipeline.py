@@ -285,7 +285,8 @@ def decide_many(
     chooser: ChooserFn | None = None,
     lift_estimator: LiftEstimator | None = None,
 ) -> Iterator[Decision]:
-    """`decide` for each Customer in order, loading the catalog, Rules and budget once and states in batches.
+    """`decide` for each Customer in order, loading the catalog, Rules, budget and Estimated Lift once and states in
+    batches.
 
     Each Offer written is added to the budget's `reserved` as `budget_state` would count it, so later Customers
     see what earlier ones used. Unknown IDs are skipped.
@@ -293,6 +294,7 @@ def decide_many(
     catalog = load_catalog(conn)
     version, rules = current_rules(conn)
     budget = budget_state(conn, rules, now)
+    lift_estimator = lift_estimator or default_lift_estimator(conn, now)
     column = "worst_case_cost" if rules.budget_mode == BudgetMode.WORST_CASE else "expected_cost"
     ids = list(customer_ids)
     for i in range(0, len(ids), BATCH):

@@ -238,6 +238,14 @@ def test_decide_many_matches_decide_one_by_one(world, world_template, tmp_path):
     other.close()
 
 
+def test_decide_many_loads_estimated_lift_once(world, monkeypatch):
+    calls = []
+    real = pipeline.segment_lift.load
+    monkeypatch.setattr(pipeline.segment_lift, "load", lambda conn, now: calls.append(now) or real(conn, now))
+    list(pipeline.decide_many(world, ids(world), TriggerKind.DAILY_SWEEP, NOW))
+    assert len(calls) == 1
+
+
 def test_decision_records_the_current_rule_version(world, eligible_id):
     version = save_rules(world, RuleSet(margin_floor_pct=6.0), author="test")
     d = pipeline.decide(world, eligible_id, CART, NOW)
