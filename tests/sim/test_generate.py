@@ -7,7 +7,7 @@ import pytest
 from offer_engine import clock
 from offer_engine.cli import main
 from offer_engine.db import connect, load_catalog
-from offer_engine.sim.generate import history_start, run
+from offer_engine.sim.generate import history_start, past_offers, run
 from offer_engine.sim.generate.history import EVENT_KINDS
 
 TABLES = (
@@ -18,6 +18,8 @@ TABLES = (
     "events",
     "sim_ground_truth",
     "sim_response_class",
+    "offers",
+    "sim_history_moments",
 )
 MARGIN_TARGETS = {
     "grocery": (12, 18),
@@ -101,7 +103,7 @@ def test_every_event_belongs_to_a_customer_and_a_listed_kind(world):
     ).fetchone()[0]
     assert orphans == 0
     kinds = {row[0] for row in world.execute("SELECT DISTINCT kind FROM events")}
-    assert kinds == set(EVENT_KINDS)
+    assert kinds == set(EVENT_KINDS) | set(past_offers.EVENT_KINDS)
 
 
 def test_events_fall_between_signup_and_clock_start(world):

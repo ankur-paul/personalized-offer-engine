@@ -50,7 +50,7 @@ class GenContext:
 
 
 from offer_engine.sim import ground_truth
-from offer_engine.sim.generate import catalog, customers, history
+from offer_engine.sim.generate import catalog, customers, history, past_offers
 from offer_engine.sim.world import pending
 
 STEPS: list[Callable[[GenContext], None]] = [
@@ -58,7 +58,8 @@ STEPS: list[Callable[[GenContext], None]] = [
     customers.step,
     history.step,
     ground_truth.step,
-    pending.save_scheduled,
+    past_offers.step,
+    pending.save_scheduled,  # after every step that schedules deliveries or returns
 ]
 
 # Wiped before every run, children first. Every `sim_*` table is wiped too.

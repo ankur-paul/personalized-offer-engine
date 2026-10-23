@@ -76,6 +76,12 @@ def p_buy(gt: GroundTruth, depth: float) -> float:
     return min(1.0, max(0.0, gt.base + gt.max_lift * (1 - math.exp(-depth / gt.k))))
 
 
+def with_base(gt: GroundTruth, base: float) -> GroundTruth:
+    """The same formula at another base, e.g. the base at a past moment. A Sleeping Dog's drop scales with it."""
+    max_lift = gt.max_lift * base / gt.base if gt.max_lift < 0 and gt.base > 0 else gt.max_lift
+    return GroundTruth(gt.customer_id, gt.offer_type, base, max_lift, gt.k)
+
+
 def offer_depth(offer_type: OfferType, params: dict[str, float], catalog_category: Category | None) -> float:
     """How strong an Offer is, in its type's units. `flat_above_min` needs the category whose basket it applies to."""
     if offer_type == OfferType.PCT_CATEGORY:
@@ -102,15 +108,16 @@ def response_class(gts: list[GroundTruth]) -> str:
     return "lost_cause"
 
 
-def organic_weekly_chance(traits: Traits, lapsed: bool) -> float:
-    """Chance of at least one order in 7 days with no Offer. Sessions are Poisson, so orders are too."""
+def organic_weekly_chance(traits: Traits, lapsed: bool, demand: float = 1.0) -> float:
+    """Chance of at least one order in 7 days with no Offer. Sessions are Poisson, so orders are too. `demand` is
+    the history's day multiplier (√season), applied to visits and conversion as `simulate_day` does."""
     from offer_engine.sim.generate.history import LAPSED_VISIT_FACTOR, funnel
 
     per_session = 0.0
     for category, share in traits.category_affinity.items():
-        cart_chance, order_chance = funnel(category, traits, demand=1.0)
+        cart_chance, order_chance = funnel(category, traits, demand)
         per_session += share * cart_chance * order_chance
-    sessions = 7 * traits.visit_rate * (LAPSED_VISIT_FACTOR if lapsed else 1.0)
+    sessions = 7 * traits.visit_rate * (LAPSED_VISIT_FACTOR if lapsed else 1.0) * demand
     return 1 - math.exp(-sessions * per_session)
 
 

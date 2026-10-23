@@ -107,9 +107,13 @@ def test_queued_offers_to_non_chat_customers_are_sent_at_send_at(world):
     add_offer(world, chatty)
     add_offer(world, later, send_at=START + timedelta(days=2))
     report = day_step.advance(world, 9)
-    assert {r[0] for r in world.execute("SELECT status FROM offers")} == {"queued"}
+    assert {r[0] for r in world.execute("SELECT status FROM offers WHERE source != 'history_random'")} == {
+        "queued"
+    }
     report = day_step.advance(world, 1)
-    statuses = dict(world.execute("SELECT customer_id, status FROM offers").fetchall())
+    statuses = dict(
+        world.execute("SELECT customer_id, status FROM offers WHERE source != 'history_random'").fetchall()
+    )
     assert statuses == {plain: "sent", chatty: "queued", later: "queued"}
     assert report.counts["offers_sent"] == 1
 
