@@ -141,3 +141,11 @@ def test_spent_finds_each_redemptions_order_by_index(db):
         "EXPLAIN QUERY PLAN SELECT amount FROM events e WHERE e.offer_id = 1 AND e.kind = 'order' LIMIT 1"
     ).fetchall()
     assert any("events_offer" in row["detail"] for row in plan)
+
+
+def test_budget_queries_skip_history_offers_by_index(db):
+    plan = db.execute(
+        "EXPLAIN QUERY PLAN SELECT SUM(worst_case_cost) FROM offers WHERE source = 'live'"
+        " AND status IN ('queued', 'sent', 'claimed') AND expires_at > '' AND created_at <= ''"
+    ).fetchall()
+    assert any("offers_source_status" in row["detail"] for row in plan)

@@ -32,6 +32,7 @@ What has been built, one line per feature, in the order it landed.
 
 - [T25] Testers: `/start` to the Offer Bot shows a button per frozen Persona Card and Surprise me. A pick gives the Tester their own copy of the Customer (`<id>-t<user id>`, with 180 days of events and every finished past Offer). `/offers` runs the pipeline on request and explains a No Offer by its Binding Rule; `/whoami` and `/switch` too. `customers.population_filter()` leaves copies out of population metrics (`uv run offer-engine start`, then `/start` to the Offer Bot from your own Telegram account)
 - [T25] Decisions stay fast as live Redemptions pile up: an index on `events.offer_id` takes `budget_state` from 7 s to 0.02 s per Decision on 10k Customers a few simulated days in, so a console +1 day no longer stalls the Offer Bot (restart `uv run offer-engine start` to apply it)
+- [T25] Faster +1 day: indexes on `sim_pending_events(customer_id, at)` and `offers(source, status)` take a simulated day on 10k Customers from 36 s to 15 s with the agent off, with the same events and Decisions (restart `uv run offer-engine start`, then +1 day on the console's Simulation Clock page)
 
 ## Known issues / cuts
 
@@ -70,3 +71,4 @@ What has been built, one line per feature, in the order it landed.
 - Each Customer Bot reply takes about 10 wall-clock seconds, most of it the agent call. With no `ANTHROPIC_API_KEY` or `FAST_AGENT_MODEL`, or when the call fails, the bot flips on Ground Truth alone and sends a neutral reply.
 - `.env` has 7 Customer Bots for 8 frozen Persona Cards, so `link-showcase` skips the optional `persuadable` card (C01609). Add an eighth bot with `offer-engine setup` to include it.
 - `clock advance` on 10k Customers slows as live Redemptions pile up: day 1 took about 6 min, day 2 about 7 min, and day 3 more than 15 min before it was stopped. `budget.budget_state` runs a subquery on `events` by `offer_id` for each redeemed Offer, at every Decision, and `events` has no index on `offer_id`. Indexing `events(offer_id)` should fix it. Not fixed in T24.
+- A Trigger logs its hit in `trigger_log` and commits it with the Decision (T19), so a Trigger that fires for a chat-attached Customer holds the database's write lock through the agent call, up to 20 s. Meanwhile the Offer Bot's `/offers` and Claims wait, and `/offers` replies that the marketplace is busy after 10 s. The Daily Sweep doesn't hold the lock while the agent decides.

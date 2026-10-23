@@ -518,3 +518,12 @@ def test_redemption_order_margin_is_basket_margin_minus_offer_cost(world):
             assert order.discount == min(0.2 * order.basket, 150.0)
         if offer_type == OfferType.NUDGE:
             assert order.discount == 0
+
+
+def test_cancel_orders_finds_a_customers_orders_by_index(conn):
+    """`trim_orders` runs it per Offer window, thousands of times a day on 10k Customers."""
+    plan = conn.execute(
+        "EXPLAIN QUERY PLAN SELECT id FROM sim_pending_events WHERE drawn = 1 AND kind = 'order'"
+        " AND customer_id = 'C1' AND at >= '' AND at < ''"
+    ).fetchall()
+    assert any("sim_pending_events_customer_at" in row["detail"] for row in plan)

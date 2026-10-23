@@ -30,14 +30,14 @@ What the app does now. Edit in place when a change alters what users see or can 
 
 ## Known limits
 
-- Auto mode runs only while the Simulation Clock page is open; switching pages or closing the tab stops it. The one-step-at-a-time guard covers the console, not a `clock advance` run from a terminal at the same time. On 10k Customers a day's Daily Sweep takes about 30 s, so Auto mode's ticks are skipped while it runs and days come slower than the slider says.
+- Auto mode runs only while the Simulation Clock page is open; switching pages or closing the tab stops it. The one-step-at-a-time guard covers the console, not a `clock advance` run from a terminal at the same time. On 10k Customers a day takes about 15 s, about 11 s of it the Daily Sweep, plus up to 20 s for each agent Decision (1–9 a day with the Customer Bots and a Tester linked). Auto mode's ticks are skipped while a day runs, so days come slower than the slider says.
 - The console has no results dashboard yet (T27), and the Rules page has no **Preview impact** (T28).
 - A Rules page open in two tabs keeps the older tab's typed values until it reruns. Saving there still saves a new version on top of the other tab's, so check the history.
 - If the Offer Bot is sending a queued Offer's card while a withdraw runs, the card can arrive after the withdraw with no notice. Claiming it gets "That code isn't active any more."
 - Only `offer-engine trigger cart-abandoned` fires a Trigger by hand.
 - The rules chooser can offer a different category from the abandoned cart. Until `lift fit` runs, it and the agent use fixed Lift guesses per Offer Type. After it, single segments' estimates are noisy (a standard error of 3–5 points against true Lift of 1–3), so the chooser can pick an Offer Type on noise. `generate` deletes the fit, and nothing refits it on its own.
 - The agent decides only for chat-attached Customers, so link one with `chats link` first. Its path has run against the real API once by hand (T10's Check); tests use a fake client.
-- Past Offers are redeemed far more often than calibration targets 3 and 4 allow (about 15% of targeted sends against 1.5–5%), because every Customer reads every Offer and every buyer uses the code (docs/QnA.md Q41). Generating 10k Customers × 12 months takes about 80 seconds; one live day for them, Triggers included, takes about 5 s, plus about 30 s for the Daily Sweep.
+- Past Offers are redeemed far more often than calibration targets 3 and 4 allow (about 15% of targeted sends against 1.5–5%), because every Customer reads every Offer and every buyer uses the code (docs/QnA.md Q41). Generating 10k Customers × 12 months takes about 80 seconds; one live day for them takes about 15 s with the agent off, 11 s of it the Daily Sweep.
 - With the fixed Lift guesses, the Daily Sweep's rules chooser sends a ₹0 Nudge to most Customers it decides for: about 8,000 of 10,000 on the first day. Not re-measured after `lift fit`.
 - The Caption Check accepts a caption that names the wrong category, and "today" or "this week" when not worded as a deadline.
 - `setup` does not ask for `DB_PATH`, `SEED` or `CONSOLE_PASSWORD`. Edit `.env` by hand to set them.
