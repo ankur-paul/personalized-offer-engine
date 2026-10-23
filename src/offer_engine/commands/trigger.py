@@ -1,4 +1,6 @@
-"""`offer-engine trigger cart-abandoned CUSTOMER_ID`: record the event at clock now and run the decision pipeline."""
+"""`offer-engine trigger cart-abandoned CUSTOMER_ID`: record the event at clock now and run the decision pipeline.
+
+It fires through `triggers.fire`, so a second cart abandoned at the same simulated time is refused."""
 
 from __future__ import annotations
 
@@ -15,11 +17,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    from offer_engine import clock
+    from offer_engine import clock, triggers
     from offer_engine.commands._format import decision_details, decision_summary, fetch_decisions
     from offer_engine.db import connect
     from offer_engine.domain import TriggerKind
-    from offer_engine.pipeline import decide
 
     conn = connect()
     now = clock.now(conn)
@@ -30,12 +31,18 @@ def run(args: argparse.Namespace) -> int:
         raise SystemExit(
             f"{args.customer_id} has never carted or viewed a product, so there is no cart to abandon"
         )
-    with conn:
-        conn.execute(
-            "INSERT INTO events (customer_id, at, kind, category, product_id, amount) VALUES (?, ?, ?, ?, ?, ?)",
-            (args.customer_id, now.isoformat(timespec="seconds"), "cart_abandoned", *product[:3]),
+    at = now.isoformat(timespec="seconds")
+    # The event commits with the Decision, or not at all.
+    conn.execute(
+        "INSERT INTO events (customer_id, at, kind, category, product_id, amount) VALUES (?, ?, ?, ?, ?, ?)",
+        (args.customer_id, at, "cart_abandoned", *product[:3]),
+    )
+    decision = triggers.fire(conn, triggers.Hit(args.customer_id, TriggerKind.CART_ABANDONED, at), now)
+    if decision is None:
+        conn.rollback()
+        raise SystemExit(
+            f"{args.customer_id} already abandoned a cart at {now.strftime('%Y-%m-%d %H:%M')}; advance the clock first"
         )
-    decision = decide(conn, args.customer_id, TriggerKind.CART_ABANDONED, now)
     row = fetch_decisions(conn, decision_id=decision.id)[0]
     print(
         f"{args.customer_id} abandoned a cart with {product[3]} ({product[1]}) at {now.strftime('%Y-%m-%d %H:%M')}"

@@ -25,6 +25,12 @@ def template(tmp_path_factory):
     return path
 
 
+@pytest.fixture(autouse=True)
+def no_decisions(monkeypatch):
+    """These tests are about the world; the hooks that ask the pipeline have their own tests."""
+    monkeypatch.setattr(triggers, "on_hour", lambda conn, now, new_events, report: None)
+
+
 @pytest.fixture
 def make_world(template, tmp_path):
     """Private copies of the generated world, as open connections."""
