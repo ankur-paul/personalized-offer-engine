@@ -37,10 +37,9 @@ Done as built:
   called. A token already used by another bot in this setup is refused.
 - `check_token` returns `None` both for a rejected token and for an unreachable Telegram, so offline the wizard
   keeps asking. Ctrl-C exits with code 130 and keeps the finished steps.
-- The BotFather menu path is not verified. Telegram's docs (core.telegram.org/api/bots/bot-to-bot) say to enable
-  the mode "in @BotFather" for both bots in a private chat but give no menu path. The wizard prints
-  `/mybots → the bot → Bot Settings → Bot-to-Bot Communication Mode` (`BOT_TO_BOT_PATH` in
-  `setup_wizard.py`). Confirm or fix it during the Check.
+- The BotFather switch is in the Mini App, not in `/mybots → Bot Settings`. Telegram's docs give no menu path.
+  Checked by hand on 2026-10-23: @BotFather → Open (Mini App) → the bot → Bot-to-Bot Communication Mode. The wizard
+  prints this path (`BOT_TO_BOT_PATH` in `setup_wizard.py`).
 - The wizard does not ask for `DB_PATH`, `SEED` or `CONSOLE_PASSWORD`. They have defaults or are optional, so
   check-env lists them `missing` unless they were set by hand.
 

@@ -24,9 +24,9 @@ from offer_engine.config import parse_customer_bots
 STEPS = 5
 MIN_CUSTOMER_BOTS, MAX_CUSTOMER_BOTS, DEFAULT_CUSTOMER_BOTS = 6, 8, 7
 MODELS_DOCS_URL = "https://platform.claude.com/docs/en/about-claude/models/overview"
-# Telegram's docs (core.telegram.org/api/bots/bot-to-bot) name the mode but not BotFather's menu path.
+# The switch is only in BotFather's Mini App, not the /mybots text menu (checked by hand, 2026-10-23).
 BOT_TO_BOT_PATH = (
-    "send /mybots, pick @{username}, open Bot Settings, then turn on Bot-to-Bot Communication Mode"
+    "tap Open to start the BotFather Mini App, pick @{username}, then turn on Bot-to-Bot Communication Mode"
 )
 
 # BotFather tokens look like `123456789:AAH...`; anything else is rejected without a network call.
