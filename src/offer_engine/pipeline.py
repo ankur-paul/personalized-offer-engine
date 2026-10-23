@@ -37,6 +37,7 @@ from offer_engine.domain import (
     TriggerKind,
     ValidationResult,
 )
+from offer_engine.lift import segment_lift
 from offer_engine.rules import eligible_set, offer_cost
 from offer_engine.rules_store import current_rules
 from offer_engine.validation import validate
@@ -77,8 +78,10 @@ def _missing_model(*args) -> Proposal:
     raise RuntimeError("OFFER_AGENT_MODEL is not set in .env")
 
 
-def default_lift_estimator() -> LiftEstimator:
-    return _no_estimate
+def default_lift_estimator(conn: sqlite3.Connection, now: datetime) -> LiftEstimator:
+    """Estimated Lift v1 per segment once `offer-engine lift fit` has run, else none (the choosers use priors)."""
+    fitted = segment_lift.load(conn, now)
+    return fitted.estimate if fitted else _no_estimate
 
 
 def _no_estimate(state: CustomerState, option: EligibleOption) -> float | None:
@@ -105,7 +108,7 @@ def decide(
     state = load_customer_state(conn, customer_id, now)
     budget = budget_state(conn, rules, now)
     es = eligible_set(state, rules, budget, now, catalog)
-    estimate = lift_estimator or default_lift_estimator()
+    estimate = lift_estimator or default_lift_estimator(conn, now)
     es = replace(es, options=tuple(replace(o, estimated_lift=estimate(state, o)) for o in es.options))
 
     def decision(chooser_used: Chooser, proposal: Proposal | None, binding: str | None, validation=None):

@@ -62,8 +62,10 @@ STEPS: list[Callable[[GenContext], None]] = [
     pending.save_scheduled,  # after every step that schedules deliveries or returns
 ]
 
-# Wiped before every run, children first. Every `sim_*` table is wiped too.
+# Wiped before every run, children first. Every `sim_*` table is wiped too, and Estimated Lift fitted on the old
+# history.
 GENERATED_TABLES = (
+    "lift_estimates",
     "events",
     "decisions",
     "offers",
