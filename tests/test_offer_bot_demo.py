@@ -19,4 +19,5 @@ def test_both_bots_build_their_handlers_offline():
     )
     # demo: /start command and text; responses: buttons, /claim and /notnow, /stop.
     assert sum(len(group) for group in offer_bot_app.build_app(settings).handlers.values()) == 5
-    assert sum(len(group) for group in customer_sim_app.build_app(settings).handlers.values()) == 2
+    customer_bot = customer_sim_app.build_app(settings, "poe_c1_bot", "456:fake", None)
+    assert sum(len(group) for group in customer_bot.handlers.values()) == 2

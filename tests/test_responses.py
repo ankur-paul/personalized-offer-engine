@@ -210,6 +210,18 @@ def test_code_command_pattern(text, action, code):
     assert match and match.groups() == (action, code)
 
 
+@pytest.mark.parametrize(
+    ("text", "action"),
+    [
+        ("Arre wah, taking this!\n/claim POE-AB12CD", "claim"),
+        ("Maybe later.\n/notnow POE-AB12CD\n", "notnow"),
+    ],
+)
+def test_code_command_may_follow_a_customer_bots_reply(text, action):
+    match = re.search(CODE_COMMAND_PATTERN, text)
+    assert match and match.groups() == (action, CODE)
+
+
 @pytest.mark.parametrize("text", ["claim POE-AB12CD", "/claimed POE-AB12CD", "/claim A B", "/not now X"])
 def test_code_command_pattern_rejects(text):
     assert re.match(CODE_COMMAND_PATTERN, text) is None

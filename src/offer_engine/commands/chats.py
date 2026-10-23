@@ -1,5 +1,6 @@
-"""`offer-engine chats link CUSTOMER_ID --bot @username` and `chats list`: which chat each chat-attached Customer
-uses. A chat serves one Customer, so linking a Customer Bot moves it off any Customer it served before."""
+"""`offer-engine chats link CUSTOMER_ID --bot @username`, `chats link-showcase` and `chats list`: which chat each
+chat-attached Customer uses. A chat serves one Customer, so linking a Customer Bot moves it off any Customer it served
+before."""
 
 from __future__ import annotations
 
@@ -13,6 +14,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     link.add_argument("customer_id", metavar="CUSTOMER_ID")
     link.add_argument("--bot", required=True, metavar="@USERNAME")
     link.set_defaults(func=run_link)
+    showcase = actions.add_parser(
+        "link-showcase", help="link each frozen Persona Card's Customer to a Customer Bot, in order"
+    )
+    showcase.set_defaults(func=run_link_showcase)
     listing = actions.add_parser("list", help="list chat-attached Customers")
     listing.set_defaults(func=run_list)
 
@@ -60,6 +65,64 @@ def run_link(args: argparse.Namespace) -> int:
     for other in moved:
         print(f"unlinked {other} from @{username}")
     print(f"linked {args.customer_id} to @{username} (chat {chat_ids[username]})")
+    return 0
+
+
+def showcase_pairs(cards: list, customer_bots: list[tuple[str, str]]) -> tuple[list[tuple], list]:
+    """([(card, bot username)], skipped cards): cards in order, the first gets the first bot. Short of bots, optional
+    cases (`personas.OPTIONAL_CASES`) are skipped from the end; errors if the required ones still don't fit."""
+    from offer_engine.personas import OPTIONAL_CASES
+
+    required = sum(card.case not in OPTIONAL_CASES for card in cards)
+    if len(customer_bots) < required:
+        raise SystemExit(
+            f"{required} required Persona Cards but {len(customer_bots)} Customer Bots in CUSTOMER_BOTS; "
+            "add bots with `offer-engine setup`"
+        )
+    room = len(customer_bots) - required
+    kept, skipped = [], []
+    for card in cards:
+        if card.case in OPTIONAL_CASES:
+            if room == 0:
+                skipped.append(card)
+                continue
+            room -= 1
+        kept.append(card)
+    usernames = [username.lstrip("@").lower() for username, _ in customer_bots]
+    return list(zip(kept, usernames)), skipped
+
+
+def run_link_showcase(args: argparse.Namespace) -> int:
+    from offer_engine import personas
+    from offer_engine.config import load_settings
+    from offer_engine.db import connect, migrate
+    from offer_engine.domain import ChatKind
+
+    settings = load_settings()
+    cards = personas.load_all(frozen_only=True)
+    if not cards:
+        raise SystemExit("no frozen Persona Cards; run `offer-engine personas draft` and `personas freeze`")
+    pairs, skipped = showcase_pairs(cards, settings.customer_bots)
+    chat_ids = bot_chat_ids(settings.customer_bots)
+    conn = connect(settings.db_path)
+    migrate(conn)
+    missing = [
+        card.customer_id
+        for card, _ in pairs
+        if conn.execute("SELECT 1 FROM customers WHERE id = ?", (card.customer_id,)).fetchone() is None
+    ]
+    if missing:
+        conn.close()
+        raise SystemExit(
+            f"no Customer {', '.join(missing)}; run `offer-engine generate` with the cards' seed first"
+        )
+    for card, username in pairs:
+        for other in link(conn, card.customer_id, chat_ids[username], ChatKind.BOT):
+            print(f"unlinked {other} from @{username}")
+        print(f"{card.customer_id}  {card.case:<20} {card.name:<22} @{username}")
+    conn.close()
+    for card in skipped:
+        print(f"skipped {card.customer_id} ({card.case}, optional): not enough Customer Bots")
     return 0
 
 

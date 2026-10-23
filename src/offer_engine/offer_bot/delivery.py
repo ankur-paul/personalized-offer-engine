@@ -1,7 +1,8 @@
 """Offer delivery: every few wall-clock seconds the Offer Bot sends due Offer Cards and `outbox` messages.
 
 An Offer is due when it is queued, its Customer is chat-attached and not opted out, and `send_at` has passed on the
-Simulation Clock but `expires_at` hasn't. A failed send stays queued and is retried on the next run.
+Simulation Clock but `expires_at` hasn't. A failed send stays queued and is retried on the next run. Telegram
+delivers to another bot only by `@username`, so a Customer Bot's card goes to its username from `CUSTOMER_BOTS`.
 """
 
 from __future__ import annotations
@@ -41,6 +42,14 @@ class OutboxMessage:
     text: str
 
 
+def send_target(chat_id: int, customer_bots: list[tuple[str, str]]) -> int | str:
+    """`@username` for a Customer Bot's chat (a bot's chat ID is its token's prefix), else the chat ID."""
+    for username, token in customer_bots:
+        if token.split(":", 1)[0] == str(chat_id):
+            return f"@{username.lstrip('@')}"
+    return chat_id
+
+
 def due_offers(conn: sqlite3.Connection, now: datetime) -> list[Delivery]:
     """Queued Offers to chat-attached, opted-in Customers whose `send_at` has passed by `now`, oldest first."""
     rows = conn.execute(
@@ -50,7 +59,7 @@ def due_offers(conn: sqlite3.Connection, now: datetime) -> list[Delivery]:
         " ORDER BY o.send_at, o.id",
         (OfferStatus.QUEUED, _iso(now), _iso(now)),
     )
-    return [Delivery(_offer(row), row["chat_id"]) for row in rows]
+    return [Delivery(offer_from_row(row), row["chat_id"]) for row in rows]
 
 
 def unsent_messages(conn: sqlite3.Connection) -> list[OutboxMessage]:
@@ -97,13 +106,14 @@ def card_buttons(code: str) -> InlineKeyboardMarkup:
 
 async def deliver(context: ContextTypes.DEFAULT_TYPE) -> None:
     """One delivery run: due Offer Cards, then outbox messages."""
-    conn = connect(context.bot_data["settings"].db_path)
+    settings = context.bot_data["settings"]
+    conn = connect(settings.db_path)
     try:
         for delivery in due_offers(conn, clock.now(conn)):
             offer = delivery.offer
             try:
                 await context.bot.send_photo(
-                    delivery.chat_id,
+                    send_target(delivery.chat_id, settings.customer_bots),
                     photo=render_offer_card(offer, {}),
                     caption=card_caption(offer),
                     reply_markup=card_buttons(offer.code),
@@ -128,7 +138,7 @@ def register(app: Application) -> None:
     app.job_queue.run_repeating(deliver, interval=INTERVAL_SECONDS, first=1, name="delivery")
 
 
-def _offer(row: sqlite3.Row) -> Offer:
+def offer_from_row(row: sqlite3.Row) -> Offer:
     return Offer(
         id=row["id"],
         code=row["code"],

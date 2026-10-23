@@ -53,3 +53,53 @@ def test_chats_link_refuses_unknown_bots_and_customers(env, conn):
 def test_chats_list_when_empty(env, capsys):
     assert main(["chats", "list"]) == 0
     assert "no chat-attached Customers" in capsys.readouterr().out
+
+
+def save_cards(directory, *customer_ids, frozen=True):
+    from offer_engine import personas
+
+    for customer_id, case in zip(customer_ids, personas.CASES):
+        personas.save(
+            personas.PersonaCard(customer_id, case, f"Name {customer_id}", "A card.", frozen, "", 7, 50),
+            directory,
+        )
+
+
+def test_link_showcase_links_frozen_cards_to_bots_in_order(env, conn, add_offer, tmp_path, capsys):
+    for customer_id in ("C00001", "C00002", "C00003"):
+        add_offer(code=f"POE-{customer_id[1:]}A", customer_id=customer_id, chat_id=None)
+    save_cards(tmp_path / "personas", "C00002", "C00001")  # cases at_risk_high_value, new_one_order
+    save_cards(tmp_path / "personas", "C00003", frozen=False)
+    assert main(["chats", "link-showcase"]) == 0
+    out = capsys.readouterr().out
+    assert "C00002  at_risk_high_value" in out and "@poe_c1_bot" in out
+    assert [
+        tuple(r) for r in conn.execute("SELECT customer_id, chat_id, kind FROM chats ORDER BY chat_id")
+    ] == [
+        ("C00002", 111, "bot"),
+        ("C00001", 222, "bot"),
+    ]
+
+
+def test_link_showcase_skips_optional_cases_when_bots_run_short(env, conn, add_offer, tmp_path, capsys):
+    from offer_engine import personas
+
+    add_offer(code="POE-00001A", customer_id="C00001", chat_id=None)
+    add_offer(code="POE-00002A", customer_id="C00002", chat_id=None)
+    save_cards(tmp_path / "personas", "C00001", "C00002")
+    card = personas.PersonaCard("C00003", "persuadable", "Name", "A card.", True, "", 7, 50)
+    personas.save(card, tmp_path / "personas")
+    assert main(["chats", "link-showcase"]) == 0
+    assert "skipped C00003 (persuadable, optional)" in capsys.readouterr().out
+    assert conn.execute("SELECT COUNT(*) FROM chats").fetchone()[0] == 2
+
+
+def test_link_showcase_needs_a_bot_per_required_card(env, conn, add_offer, tmp_path):
+    save_cards(tmp_path / "personas", "C00001", "C00002", "C00003")
+    with pytest.raises(SystemExit, match="3 required Persona Cards but 2 Customer Bots"):
+        main(["chats", "link-showcase"])
+
+
+def test_link_showcase_needs_frozen_cards(env):
+    with pytest.raises(SystemExit, match="no frozen Persona Cards"):
+        main(["chats", "link-showcase"])
