@@ -128,3 +128,30 @@ def test_withdraw_needs_the_confirmation(decision_db, console_env):
     log = app.dataframe[1].value
     assert (log["who"].tolist(), log["offers"].tolist()) == (["Asha"], [3])
     assert "**0** outstanding Offers" in " ".join(texts(app.markdown))
+
+
+def test_preview_impact_shows_the_diff_and_saves_nothing(decision_db, console_env):
+    app = rules_page()
+    app.number_input(key="rule.holdout_pct").set_value(60.0)
+    app.button(key="preview").click().run()
+    assert not app.exception, app.exception
+
+    headline = next(t for t in texts(app.markdown) if " Offers · " in t)
+    assert headline.startswith("**-") and headline.endswith(" expected cost**")
+    assert any(
+        "Customers lose their Offer" in t and "Nothing is saved until" in t for t in texts(app.caption)
+    )
+    by_type, by_binding = app.dataframe[0].value, app.dataframe[1].value
+    assert (by_type["change"] < 0).any()
+    assert by_binding.iloc[0]["Binding Rule"] == "holdout_pct"
+    assert by_binding.iloc[0]["change"] > 0
+    assert rules_store.current_rules(decision_db) == (0, RuleSet())
+
+
+def test_preview_impact_with_nothing_changed(decision_db, console_env):
+    app = rules_page()
+    app.button(key="preview").click().run()
+    assert "Nothing changed. Edit a Rule above to preview its impact." in texts(app.info)
+    app.number_input(key="rule.send_hour_start").set_value(21)
+    app.button(key="preview").click().run()
+    assert "The send hours must start before they end." in texts(app.error)

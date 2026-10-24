@@ -1,5 +1,6 @@
 """Rules (PLAN §3.3, §6): every Rule as a plain-English form, versioned with who and when, one-click revert, the
-budget mode, and the emergency withdraw of outstanding Offers. New Rules apply to new Decisions only."""
+budget mode, Preview impact of an edit, and the emergency withdraw of outstanding Offers. New Rules apply to new
+Decisions only."""
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from console import data
 from console.rule_labels import BUDGET_MODE_NAMES, GROUPS, LABELS, RuleLabel, sentence
 from offer_engine import clock, rules_store
 from offer_engine.domain import LOYALTY_TIERS, BudgetMode, RuleSet
+from offer_engine.sim.preview import Change, PreviewResult, preview
 from offer_engine.withdraw import count_outstanding, list_withdrawals, withdraw_outstanding
 
 PREFIX = "rule."
@@ -100,6 +102,30 @@ def rule_inputs(label: RuleLabel, saved: dict[str, object], keys: dict[str, list
     return out
 
 
+def changes_table(changes: list[Change], name: str) -> None:
+    if not changes:
+        st.caption(f"No change by {name}.")
+        return
+    st.dataframe(
+        [{name: c.name, "now": c.current, "with your edits": c.new, "change": c.change} for c in changes],
+        hide_index=True,
+    )
+
+
+def show_preview(result: PreviewResult) -> None:
+    st.markdown(f"**{result.headline()}**")
+    st.caption(
+        f"One Daily Sweep at {result.at.strftime(data.TIME_FORMAT)}, decided by the rules chooser, under the "
+        f"current Rules and under your edits. {len(result.newly_blocked):,} Customers lose their Offer and "
+        f"{len(result.newly_unblocked):,} get one. Nothing is saved until **Save**."
+    )
+    type_col, binding_col = st.columns(2)
+    with type_col:
+        changes_table(result.type_changes(), "Offer Type")
+    with binding_col:
+        changes_table(result.binding_changes(), "Binding Rule")
+
+
 st.title("Rules")
 st.caption(
     "Every Offer must satisfy these. A change applies to new Decisions only; Offers already made keep the rule "
@@ -155,7 +181,14 @@ try:
         else:
             saved_version = rules_store.save_rules(conn, new_rules, author, note)
             finish(f"Saved v{saved_version}.")
-    # T28's Preview impact button goes here.
+    if st.button("Preview impact", key="preview"):
+        if new_rules.send_hour_start >= new_rules.send_hour_end:
+            st.error("The send hours must start before they end.")
+        elif new_rules == rules:
+            st.info("Nothing changed. Edit a Rule above to preview its impact.")
+        else:
+            with st.spinner("Running the next Daily Sweep with the current Rules and with your edits…"):
+                show_preview(preview(conn, new_rules))
 
     st.header("Version history")
     history = data.rule_history(conn)
