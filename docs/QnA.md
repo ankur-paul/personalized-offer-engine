@@ -168,3 +168,9 @@ Options: events and points only, as T25 first said; also the finished Offers of 
 Decided: also the finished Offers (redeemed, expired, dismissed, withdrawn), with new codes and the copied events linked to them. Estimated Lift's coupon-user segment, the agent's prompt, frequency caps and cooldowns all read past Offers. Without them the engine would decide for a different Customer from the one the Persona Card describes. Open Offers (queued, sent, claimed) stay with the source, so none of the source's outcomes reach the Tester.
 
 Refined while building T25: every past Offer that is finished or expired, whatever its age, not only the last 180 days. The pipeline reads all of a Customer's Offers, and a deal hunter's Redemptions can all be older than 180 days: Sameer Reddy's copy lost all 12 and stopped counting as a coupon user.
+
+## Round 11: building T26
+
+**Q43. Does Blanket 20% send to a Customer who already holds an unexpired Offer?**
+Options: one live Offer at a time; event Triggers only, skipping the Daily Sweep; literally every Trigger, overlapping Offers allowed.
+Decided: one live Offer at a time. Blanket sends at every Trigger, the Daily Sweep included, unless the Customer holds an Offer that is queued, sent or claimed and not expired. It ignores every other Rule. The Daily Sweep is a Trigger, so the literal reading sends every Customer a new Offer each day, and each Offer draws its own 7-day buying chance: purchases would multiply and Blanket would look good because of the simulator, not the Policy.

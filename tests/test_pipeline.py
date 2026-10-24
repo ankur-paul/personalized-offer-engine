@@ -258,6 +258,81 @@ def test_defaults_are_the_rules_chooser_and_no_estimate(world, eligible_id):
     assert pipeline.default_lift_estimator(world, NOW)(state, None) is None
 
 
+# --- Policy overrides (T26) ----------------------------------------------------------------------
+
+
+def outside_the_eligible_set(es, state, catalog, rules) -> Proposal:
+    """50% off with no cap: no Rule allows it."""
+    category = min(catalog.categories)
+    return Proposal(OfferType.PCT_CATEGORY, category, {"pct": 50.0, "cap": 1e9}, (), es.at, "Hi", "test")
+
+
+def test_validate_false_writes_the_proposal_as_it_is(world, eligible_id):
+    d = pipeline.decide(world, eligible_id, CART, NOW, chooser=outside_the_eligible_set, validate=False)
+    offer = offer_row(world, d.offer_id)
+    assert json.loads(offer["params"]) == {"pct": 50.0, "cap": 1e9}
+    assert d.chooser == Chooser.RULES and d.validation is None and d.binding_rule is None
+    assert offer["worst_case_cost"] == 1e9
+
+
+def test_validate_false_ignores_every_short_circuit_but_opt_out_and_holdout(world, eligible_id, holdout_id):
+    cap = RuleSet().frequency_cap_count
+    for i in range(cap + 1):
+        d = pipeline.decide(
+            world,
+            eligible_id,
+            CART,
+            NOW + timedelta(hours=i),
+            chooser=outside_the_eligible_set,
+            validate=False,
+        )
+        assert d.offer_id is not None
+    held = pipeline.decide(world, holdout_id, CART, NOW, chooser=outside_the_eligible_set, validate=False)
+    assert held.offer_id is None and held.binding_rule == "holdout_pct"
+    world.execute("UPDATE customers SET opted_out = 1 WHERE id = ?", (eligible_id,))
+    out = pipeline.decide(world, eligible_id, CART, NOW, chooser=outside_the_eligible_set, validate=False)
+    assert out.offer_id is None and out.binding_rule == "opt_out"
+
+
+def test_validation_stays_on_by_default(world, eligible_id):
+    d = pipeline.decide(world, eligible_id, CART, NOW, chooser=outside_the_eligible_set)
+    assert d.chooser == Chooser.FALLBACK and d.validation.failures
+
+
+def test_chooser_override_forces_the_chooser_on_decide_and_decide_many(world, eligible_id):
+    seen = []
+
+    def no_offer(es, state, catalog, rules):
+        seen.append(state.customer.id)
+        return Proposal(None, reason="forced")
+
+    with pipeline.chooser_override(lambda state, trigger: no_offer):
+        assert pipeline.decide(world, eligible_id, CART, NOW).reason == "forced"
+        many = list(pipeline.decide_many(world, ids(world), TriggerKind.DAILY_SWEEP, NOW + timedelta(days=1)))
+    assert all(d.offer_id is None for d in many)
+    assert eligible_id in seen and len(seen) > 1
+    assert pipeline.decide(world, eligible_id, CART, NOW + timedelta(days=2)).reason != "forced"
+
+
+def test_chooser_override_can_turn_validation_off(world, eligible_id):
+    with pipeline.chooser_override(lambda state, trigger: outside_the_eligible_set, validate=False):
+        d = pipeline.decide(world, eligible_id, CART, NOW)
+    assert json.loads(offer_row(world, d.offer_id)["params"])["pct"] == 50.0
+
+
+def test_prefetch_sees_each_batch_and_its_eligible_sets_before_deciding(world, monkeypatch):
+    monkeypatch.setattr(pipeline, "BATCH", 20)
+    batches = []
+
+    def prefetch(states, eligible, catalog, rules, trigger):
+        batches.append([(s.customer.id, eligible(s).customer_id) for s in states])
+
+    with pipeline.chooser_override(lambda state, trigger: rules_chooser.choose, prefetch=prefetch):
+        list(pipeline.decide_many(world, ids(world), TriggerKind.DAILY_SWEEP, NOW))
+    assert [len(b) for b in batches] == [20, 20, 10]
+    assert all(cid == es_id for b in batches for cid, es_id in b)
+
+
 # --- CLI ---------------------------------------------------------------------------------------
 
 

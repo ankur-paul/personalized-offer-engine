@@ -1,7 +1,8 @@
 """The decision pipeline (ADR 0001, PLAN §3.5): Rules → chooser → Validation → Fallback → Decision log.
 
 `default_chooser` and `default_lift_estimator` are separate on purpose: T11 changed only the first, T16 only the
-second.
+second. `chooser_override` lets the offline Policy simulator (T26) force its chooser on Decisions the Triggers and
+the Daily Sweep start.
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ import secrets
 import sqlite3
 import string
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import replace
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from offer_engine import caption_check
@@ -46,6 +49,13 @@ from offer_engine.validation import validate
 
 ChooserFn = Callable[[EligibleSet, CustomerState, Catalog, RuleSet], Proposal]
 LiftEstimator = Callable[[CustomerState, EligibleOption], float | None]
+ChooserFactory = Callable[[CustomerState, TriggerKind | None], ChooserFn]
+# Called before `decide_many` decides a batch with the batch's states, a function giving a state's Eligible Set as
+# the batch sees it at its start, the catalog, the Rules and the trigger. The Rules + Agent Policy uses it to make
+# its agent calls concurrently.
+Prefetch = Callable[
+    [list[CustomerState], Callable[[CustomerState], EligibleSet], Catalog, RuleSet, TriggerKind], None
+]
 
 # The parameter whose limit is the Decision's Binding Rule. Offer Types without parameters have none.
 MAIN_PARAM = {
@@ -54,6 +64,8 @@ MAIN_PARAM = {
     OfferType.POINTS_MULTIPLIER: "multiplier",
 }
 FALLBACK_FAILED = "fallback_failed"
+# Short-circuits that stop a Decision even when Validation is off: nothing overrides opt-out or the Holdout.
+ALWAYS_STOP = ("opt_out", "holdout")
 CODE_PREFIX = "POE-"
 CODE_ALPHABET = string.ascii_uppercase + string.digits
 
@@ -80,6 +92,29 @@ def _missing_model(*args) -> Proposal:
     raise RuntimeError("OFFER_AGENT_MODEL is not set in .env")
 
 
+@dataclass(frozen=True)
+class Override:
+    choose_for: ChooserFactory
+    validate: bool = True
+    prefetch: Prefetch | None = None
+
+
+_override: ContextVar[Override | None] = ContextVar("chooser_override", default=None)
+
+
+@contextmanager
+def chooser_override(
+    choose_for: ChooserFactory, *, validate: bool = True, prefetch: Prefetch | None = None
+) -> Iterator[None]:
+    """Inside the block, a Decision with no explicit `chooser` uses `choose_for(state, trigger)` instead of
+    `default_chooser`, and `validate=False` turns Validation off as `decide(..., validate=False)` does."""
+    token = _override.set(Override(choose_for, validate, prefetch))
+    try:
+        yield
+    finally:
+        _override.reset(token)
+
+
 def default_lift_estimator(conn: sqlite3.Connection, now: datetime) -> LiftEstimator:
     """Estimated Lift v1 per segment once `offer-engine lift fit` has run, else none (the choosers use priors)."""
     fitted = segment_lift.load(conn, now)
@@ -98,18 +133,24 @@ def decide(
     *,
     chooser: ChooserFn | None = None,
     lift_estimator: LiftEstimator | None = None,
+    validate: bool = True,
 ) -> Decision:
     """Decide for one Customer at `now`, write the Decision and, if an Offer was chosen, a `queued` Offer.
 
     The Decision's `validation` is None when nothing was proposed or rejected. Otherwise `ok` says whether the
     Decision's Offer passed, and `failures` lists every failure on the way, including a rejected proposal's
     before the Fallback took over.
+
+    `validate=False` is for the Blanket 20% Policy only (T26): the chooser's Proposal is written as it is, and
+    only opt-out and the Holdout stop it.
     """
     catalog = load_catalog(conn)
     version, rules = current_rules(conn)
     state = load_customer_state(conn, customer_id, now)
     budget = budget_state(conn, rules, now)
-    return _decide(conn, state, trigger, now, catalog, version, rules, budget, chooser, lift_estimator)
+    return _decide(
+        conn, state, trigger, now, catalog, version, rules, budget, chooser, lift_estimator, validate
+    )
 
 
 def _decide(
@@ -123,11 +164,14 @@ def _decide(
     budget: BudgetState,
     chooser: ChooserFn | None,
     lift_estimator: LiftEstimator | None,
+    validate: bool = True,
 ) -> Decision:
     customer_id = state.customer.id
-    es = eligible_set(state, rules, budget, now, catalog)
-    estimate = lift_estimator or default_lift_estimator(conn, now)
-    es = replace(es, options=tuple(replace(o, estimated_lift=estimate(state, o)) for o in es.options))
+    override = _override.get()
+    if override is not None:
+        validate = validate and override.validate
+        chooser = chooser or override.choose_for(state, trigger)
+    es = _eligible(state, rules, budget, now, catalog, lift_estimator or default_lift_estimator(conn, now))
 
     def decision(chooser_used: Chooser, proposal: Proposal | None, binding: str | None, validation=None):
         reason = proposal.reason if proposal else ""
@@ -135,13 +179,16 @@ def _decide(
             None, customer_id, now, trigger, chooser_used, None, reason, binding, version, validation
         )
 
-    if es.short_circuit is not None:
+    if es.short_circuit is not None and (validate or es.short_circuit in ALWAYS_STOP):
         no_offer = Proposal(None, reason=f"No Offer: {es.short_circuit} ({es.binding_rule})")
         return _write(
             conn, decision(Chooser.RULES, no_offer, es.binding_rule), None, es, state, catalog, rules
         )
 
     primary = chooser or default_chooser(state, trigger)
+    if not validate:
+        proposal = primary(es, state, catalog, rules)
+        return _write(conn, decision(Chooser.RULES, proposal, None), proposal, es, state, catalog, rules)
     is_rules = primary is rules_chooser.choose
     chooser_used = Chooser.RULES if is_rules else Chooser.AGENT
     proposal, rejected = _attempt(primary, es, state, catalog, rules, budget, now)
@@ -162,8 +209,7 @@ def _decide(
     validation = ValidationResult(True, tuple(rejected)) if proposal.offer_type or rejected else None
     binding = None
     if proposal.offer_type is not None:
-        option = _option(es, proposal)
-        binding = option.binding_rules.get(MAIN_PARAM.get(proposal.offer_type, ""))
+        binding = _option(es, proposal).binding_rules.get(MAIN_PARAM.get(proposal.offer_type, ""))
     return _write(
         conn,
         decision(chooser_used, proposal, binding, validation),
@@ -176,6 +222,19 @@ def _decide(
     )
 
 
+def _eligible(
+    state: CustomerState,
+    rules: RuleSet,
+    budget: BudgetState,
+    now: datetime,
+    catalog: Catalog,
+    estimate: LiftEstimator,
+) -> EligibleSet:
+    """The Eligible Set with each option's Estimated Lift."""
+    es = eligible_set(state, rules, budget, now, catalog)
+    return replace(es, options=tuple(replace(o, estimated_lift=estimate(state, o)) for o in es.options))
+
+
 def _attempt(choose: ChooserFn, es, state, catalog, rules, budget, now) -> tuple[Proposal | None, list[str]]:
     """The chooser's Proposal and its Validation failures; an exception is a failure too."""
     try:
@@ -186,9 +245,11 @@ def _attempt(choose: ChooserFn, es, state, catalog, rules, budget, now) -> tuple
     return proposal, list(validate(proposal, state, rules, budget, now, catalog, checker).failures)
 
 
-def _option(es: EligibleSet, proposal: Proposal) -> EligibleOption:
+def _option(es: EligibleSet, proposal: Proposal) -> EligibleOption | None:
+    """The option the Proposal took; None only for an unvalidated Proposal from outside the Eligible Set."""
     return next(
-        o for o in es.options if o.offer_type == proposal.offer_type and o.category == proposal.category
+        (o for o in es.options if o.offer_type == proposal.offer_type and o.category == proposal.category),
+        None,
     )
 
 
@@ -229,9 +290,11 @@ def _write(
 
 
 def _insert_offer(conn, decision: Decision, proposal: Proposal, es, state, catalog, rules) -> int:
-    option = _option(es, proposal)
     focus = rules_chooser.focus_category(state, decision.at, catalog)
     worst_case = offer_cost(proposal.offer_type, proposal.category, proposal.params, catalog, rules)[0]
+    option = _option(es, proposal) or EligibleOption(
+        proposal.offer_type, proposal.category, {}, {}, worst_case_cost=worst_case
+    )
     expected = rules_chooser.assess(option, proposal.params, catalog, rules, focus).expected_cost
     expires_at = proposal.send_at + timedelta(days=rules.offer_validity_days)
     while True:
@@ -284,12 +347,14 @@ def decide_many(
     *,
     chooser: ChooserFn | None = None,
     lift_estimator: LiftEstimator | None = None,
+    validate: bool = True,
 ) -> Iterator[Decision]:
     """`decide` for each Customer in order, loading the catalog, Rules, budget and Estimated Lift once and states in
     batches.
 
     Each Offer written is added to the budget's `reserved` as `budget_state` would count it, so later Customers
-    see what earlier ones used. Unknown IDs are skipped.
+    see what earlier ones used. Unknown IDs are skipped. Under a `chooser_override` with a `prefetch`, each batch
+    is handed to it before its Decisions.
     """
     catalog = load_catalog(conn)
     version, rules = current_rules(conn)
@@ -300,6 +365,14 @@ def decide_many(
     for i in range(0, len(ids), BATCH):
         batch = ids[i : i + BATCH]
         states = load_customer_states(conn, batch, now)
+        override = _override.get()
+        if override is not None and override.prefetch is not None and chooser is None:
+            eligible = functools.partial(
+                _eligible, rules=rules, budget=budget, now=now, catalog=catalog, estimate=lift_estimator
+            )
+            override.prefetch(
+                [states[cid] for cid in batch if cid in states], eligible, catalog, rules, trigger
+            )
         for customer_id in batch:
             if customer_id not in states:
                 continue
@@ -314,6 +387,7 @@ def decide_many(
                 budget,
                 chooser,
                 lift_estimator,
+                validate,
             )
             if d.offer_id is not None:
                 cost = conn.execute(f"SELECT {column} FROM offers WHERE id = ?", (d.offer_id,)).fetchone()[0]

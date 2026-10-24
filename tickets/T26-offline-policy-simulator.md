@@ -1,5 +1,5 @@
 # T26 — Offline Policy simulator
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T11, T16, T18, T19, T20 · **Branch:** t26-policy-sim
 
 ## Goal
@@ -34,6 +34,18 @@ QnA Q15, Q31; ADR 0002; "Assumed › Outcomes").
   like for like.
 - Leave Tester copies out (`population_filter` from T25 if present; otherwise filter `is_tester_copy = 0`).
 - Expect minutes, not hours: report runtime per Policy.
+- Done as built: `pipeline.chooser_override(choose_for, validate=..., prefetch=...)` forces a Policy's chooser on
+  every Decision in a run, Triggers and the Daily Sweep included, so `run_policy` needs no change to the world.
+  `validate=False` still stops for opt-out and Holdout. Its `prefetch` hook lets Rules + Agent ask the agent for a
+  whole Daily Sweep batch at once (16 threads); one call at a time, 4,500 calls would take about a day.
+- Done as built: Rules + Agent runs on all Customers, with the agent for the sample and the rules chooser for the
+  rest, so the weekly budget behaves as it would live. Only the sample is reported. `customer_ids` picks that sample.
+- Done as built: Blanket 20% sends at every Trigger unless the Customer already holds a live Offer (queued, sent or
+  claimed, not expired), so a Customer holds one at a time. It ignores every other Rule (QnA Q43).
+- Done as built: the copies run with `PRAGMA synchronous = OFF`, which took a simulated day from 58 s to 24 s.
+  Estimated Lift for the deciles is the segment estimate at the run's start. `--seed` and `--jobs` (Policies run
+  in parallel processes, default 4) were added. Chats are deleted in each copy, so no Telegram sends happen.
+- Done as built: the full run took 102 minutes, not minutes; see PROGRESS.md Known issues.
 
 ## Tests
 - `tests/sim/test_metrics.py`: Incremental Margin on a hand-built pair of runs; spend on Sure Things; deciles.
@@ -47,8 +59,8 @@ QnA Q15, Q31; ADR 0002; "Assumed › Outcomes").
 (if not, record it honestly in PROGRESS.md Known issues).
 
 ## Done when
-- [ ] Four Policies run from the same starting state and seed without changing the live database
-- [ ] Incremental Margin per ₹ and the supporting metrics are computed and saved
-- [ ] Agent calls are cached
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T26: offline Policy simulator`
+- [x] Four Policies run from the same starting state and seed without changing the live database
+- [x] Incremental Margin per ₹ and the supporting metrics are computed and saved
+- [x] Agent calls are cached
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T26: offline Policy simulator`
