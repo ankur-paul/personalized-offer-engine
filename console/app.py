@@ -4,6 +4,7 @@ sidebar; a password gate guards them all when `CONSOLE_PASSWORD` is set."""
 from __future__ import annotations
 
 import hmac
+import os
 import sys
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from console import data
 from offer_engine.config import load_settings
 
 st.set_page_config(page_title="Offer Engine console", layout="wide")
+
+DEFAULT_LIVE_URL = "http://localhost:8502"
 
 
 def password_gate(password: str | None) -> None:
@@ -41,6 +44,7 @@ if conn is None:
     st.stop()
 st.sidebar.metric("Simulated time", data.sim_time(conn))
 conn.close()
+st.sidebar.markdown(f"[Live engine view]({os.environ.get('LIVE_URL') or DEFAULT_LIVE_URL})")
 
 page = st.navigation(
     [

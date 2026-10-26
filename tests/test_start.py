@@ -31,8 +31,9 @@ def test_a_failing_process_stops_the_others():
     assert time.monotonic() - started < 10
 
 
-def test_start_runs_both_bots_and_the_console():
-    assert [name for name, _ in PROCESSES] == ["offer-bot", "customer-bots", "console"]
+def test_start_runs_both_bots_the_console_and_the_live_view():
+    assert [name for name, _ in PROCESSES] == ["offer-bot", "customer-bots", "console", "live"]
+    assert dict(PROCESSES)["live"][1:] == ["-m", "offer_engine.live"]
     assert [command[2] for _, command in PROCESSES[:2]] == [
         "offer_engine.offer_bot.app",
         "offer_engine.customer_sim.app",

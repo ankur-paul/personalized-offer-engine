@@ -25,6 +25,12 @@ def test_clock_page_loads_with_the_simulated_time(decision_db, console_env):
     assert [b.label for b in app.button] == ["+1 hour", "+1 day"]
 
 
+def test_the_sidebar_links_to_the_live_engine_view(decision_db, console_env, monkeypatch):
+    assert "[Live engine view](http://localhost:8502)" in [m.value for m in run_page().sidebar.markdown]
+    monkeypatch.setenv("LIVE_URL", "https://demo.example/live")
+    assert "[Live engine view](https://demo.example/live)" in [m.value for m in run_page().sidebar.markdown]
+
+
 def test_plus_one_day_moves_the_clock_24_hours(decision_db, console_env):
     app = run_page()
     app.button(key="day").click().run()
