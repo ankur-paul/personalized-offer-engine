@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offer Engine live view</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <h1>Offer Engine <span class="muted">live view</span></h1>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <button id="theme" class="ghost" type="button">Dark theme</button>
+  </header>
+
+  <div class="layout">
+    <nav class="scenarios" id="scenarios" aria-label="Scenarios"></nav>
+
+    <main class="main">
+      <!-- T40: the counters strip goes here. -->
+      <div id="counters"></div>
+      <section class="diagram-wrap" id="diagram-wrap" aria-label="The Decision pipeline">
+        <svg id="diagram" role="group" aria-label="Decision pipeline, stage by stage"></svg>
+      </section>
+      <article class="card" id="card" aria-live="polite">
+        <p class="eyebrow">How to use this page</p>
+        <h2>Watch the engine decide</h2>
+        <p>Pick a scenario. Each stage of the Decision lights up as the engine reaches it, with what it
+          saw and why. Click a row under Latest Decisions to play back a Decision made earlier.</p>
+      </article>
+      <!-- T40: the outcome and truth panels go here. -->
+      <div id="panels"></div>
+    </main>
+
+    <aside class="ticker" aria-labelledby="ticker-title">
+      <h2 id="ticker-title">Latest Decisions</h2>
+      <ol id="ticker"></ol>
+      <button id="ticker-more" class="ghost" type="button" aria-controls="ticker" aria-expanded="false">Show 20</button>
+    </aside>
+  </div>
+
+  <div id="tip" class="tip" role="tooltip" hidden></div>
+</body>
+</html>

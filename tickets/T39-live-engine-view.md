@@ -1,5 +1,5 @@
 # T39 — Live engine view: animated pipeline
-**Status:** IN PROGRESS
+**Status:** DONE
 **Prereqs:** T37 · **Branch:** t39-live-engine-view
 
 ## Goal
@@ -74,6 +74,8 @@ read each stage without help.
 - **Type and spacing:** the system font stack; sizes 14, 16, 20 and 28 px; line height 1.5. Spacing in multiples
   of 8 px. Cards have a 1 px border and 8 px radius, with no heavy shadows.
 
+- Done as built: the tests are in `tests/live_view/`, not `tests/live/`. `conftest.py` skips any test whose keywords include `live`, and the folder name is a keyword (FRICTION-LOG). They run on the 50-Customer world, as T37's scenario tests do; the repo has no 300-Customer fixture. `create_app` takes `run_scenario`, so a test can set `chooser_override` in the worker thread (a ContextVar doesn't cross threads). A run's failure streams as a `failure` event, since `error` is EventSource's own connection event. `LIVE_PORT` and `LIVE_URL` come from the process environment, not `.env`. The password prompt is tested, not tried in a browser.
+
 ## Tests
 - `tests/live/test_app.py` with FastAPI's `TestClient` on the 300-Customer fixture with stand-in scenarios and a
   fake agent:
@@ -95,9 +97,9 @@ Then look at the page at 1280 px and 390 px, in both themes. Run **rule-change**
 under "What the scenario did". Hover over "Eligible Set" and check that its definition appears.
 
 ## Done when
-- [ ] `offer-engine start` serves the live page on port 8502, behind the password when set
-- [ ] A scenario button animates its Decision stage by stage with explanations
-- [ ] A ticker row plays back a stored trace
-- [ ] The page follows Look and feel at 1280 px and 390 px, in both themes
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T39: live engine view`
+- [x] `offer-engine start` serves the live page on port 8502, behind the password when set
+- [x] A scenario button animates its Decision stage by stage with explanations
+- [x] A ticker row plays back a stored trace
+- [x] The page follows Look and feel at 1280 px and 390 px, in both themes
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T39: live engine view`

@@ -18,13 +18,14 @@ PROCESSES = [
     ("offer-bot", [sys.executable, "-m", "offer_engine.offer_bot.app"]),
     ("customer-bots", [sys.executable, "-m", "offer_engine.customer_sim.app"]),
     ("console", [sys.executable, "-m", "streamlit", "run", str(CONSOLE_APP), "--server.headless", "true"]),
+    ("live", [sys.executable, "-m", "offer_engine.live"]),
 ]
 STOP_TIMEOUT = 5.0
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
-        "start", help="run the Offer Bot, the Customer Bot simulator and the console"
+        "start", help="run the Offer Bot, the Customer Bot simulator, the console and the live engine view"
     )
     parser.set_defaults(func=run)
 
