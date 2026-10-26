@@ -1,5 +1,5 @@
 # T44 — Live view: agent badge, Agent filter and Customer Bot reactions on playback
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T43 · **Branch:** t44-agent-badge-bot-reactions
 
 ## Goal
