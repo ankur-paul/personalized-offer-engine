@@ -23,7 +23,9 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+# Temp files go on the project disk, not the RAM-backed /tmp: parallel runs build several worlds. pytest
+# clears --basetemp at the start of each run.
+addopts = "-ra -n auto --basetemp=.pytest-tmp"
 pythonpath = ["."]
 markers = [
     "live: talks to Telegram or the Claude API; run with -m live",
@@ -36,7 +38,9 @@ target-version = "py312"
 
 [dependency-groups]
 dev = [
+    "filelock>=4.2.4",
     "hypothesis>=6.170.5",
     "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.17.1",
 ]
