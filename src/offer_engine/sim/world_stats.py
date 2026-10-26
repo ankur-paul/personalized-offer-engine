@@ -19,9 +19,9 @@ from offer_engine.domain import OfferSource, OfferType, RuleSet
 from offer_engine.sim.ground_truth import RESPONSE_CLASSES
 from offer_engine.sim.live_metrics import funnel, holdout_comparison
 
-# A day's Decisions in five groups, in chart order. A No Offer without a Binding Rule is a chooser's choice: no
-# option was worth its cost.
-GROUPS = ("paid", "nudge", "nothing", "frequency_cap", "other_rules")
+# A day's Decisions in six groups, in chart order. A No Offer without a Binding Rule is a chooser's choice: no
+# option was worth its cost. One with `weekly_budget` had every option dropped by the spent budget (T42).
+GROUPS = ("paid", "nudge", "nothing", "frequency_cap", "budget", "other_rules")
 NO_RULE = "none"
 _TESTER_SUFFIX = re.compile(r"-t\d+$")
 
@@ -60,7 +60,9 @@ def group_of(offer_type: str | None, binding_rule: str | None) -> str:
         return "paid"
     if binding_rule is None:
         return "nothing"
-    return "frequency_cap" if binding_rule == "frequency_cap_count" else "other_rules"
+    return {"frequency_cap_count": "frequency_cap", "weekly_budget": "budget"}.get(
+        binding_rule, "other_rules"
+    )
 
 
 def decisions_by_day(conn: sqlite3.Connection, since: datetime = clock.START) -> list[dict[str, Any]]:

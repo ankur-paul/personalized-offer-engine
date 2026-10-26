@@ -23,6 +23,7 @@ from offer_engine.domain import (
     OfferType,
     Product,
     RuleSet,
+    TriggerKind,
 )
 from offer_engine.rules import RECENT_CATEGORY_DAYS, eligible_set, in_holdout
 from offer_engine.validation import validate
@@ -55,9 +56,10 @@ def state_with(*events: tuple[float, str, str], customer_id: str = OUT_IDS[0], t
     return CustomerState(customer=customer, events=evs, offers=())
 
 
-def choose(state, rules=None, budget=NO_SPEND, now=NOW, estimate=None):
+def choose(state, rules=None, budget=NO_SPEND, now=NOW, estimate=None, trigger=TriggerKind.CART_ABANDONED):
+    """An abandoned cart by default, as the states below cart a product, so the Nudge is an option (QnA Q56)."""
     rules = rules or RuleSet()
-    es = eligible_set(state, rules, budget, now, CATALOG)
+    es = eligible_set(state, rules, budget, now, CATALOG, trigger)
     if estimate is not None:
         es = replace(es, options=tuple(replace(o, estimated_lift=estimate(o)) for o in es.options))
     return es, rules_chooser.choose(es, state, CATALOG, rules)
@@ -70,7 +72,7 @@ def test_fashion_cart_gets_a_fashion_discount_inside_its_range():
     option = next(o for o in es.options if o.category == "fashion")
     for name, value in p.params.items():
         assert option.ranges[name].lo <= value <= option.ranges[name].hi
-    assert validate(p, state, RuleSet(), NO_SPEND, NOW, CATALOG).ok
+    assert validate(p, state, RuleSet(), NO_SPEND, NOW, CATALOG, trigger=TriggerKind.CART_ABANDONED).ok
 
 
 def test_picks_the_depth_with_the_highest_value_not_the_deepest():
@@ -175,7 +177,7 @@ def cases(draw):
 def test_proposals_always_pass_validation_and_the_caption_check(case):
     state, rules, budget, now, lift = case
     _, p = choose(state, rules, budget, now, estimate=lambda o: lift)
-    assert validate(p, state, rules, budget, now, CATALOG).ok
+    assert validate(p, state, rules, budget, now, CATALOG, trigger=TriggerKind.CART_ABANDONED).ok
     if p.offer_type is not None:
         assert not re.search(r"\d", p.caption)
         assert caption_check.check(p.caption, p, CATALOG, validity_days=rules.offer_validity_days) == []

@@ -20,14 +20,17 @@ from offer_engine.domain import (
     ParamRange,
     PastOffer,
     RuleSet,
+    TriggerKind,
 )
 from offer_engine.rules import (
     MIN_CAP,
     MIN_FLAT_AMOUNT,
     MIN_PCT,
     MIN_POINTS_MULTIPLIER,
+    NUDGE_TRIGGERS,
     POINTS_PER_RUPEE,
     eligible_set,
+    empty_set_binding,
     fatigue_paused_until,
     in_holdout,
     offer_cost,
@@ -101,8 +104,9 @@ def dismissed(*days_ago: float) -> tuple[PastOffer, ...]:
     return tuple(past_offer(d, OfferStatus.DISMISSED) for d in days_ago)
 
 
-def compute(state=None, rules=None, budget=NO_SPEND, now=NOW):
-    return eligible_set(state or make_state(), rules or RuleSet(), budget, now, CATALOG)
+def compute(state=None, rules=None, budget=NO_SPEND, now=NOW, trigger=TriggerKind.CART_ABANDONED):
+    """An abandoned cart by default, so every Offer Type, the Nudge too, can be eligible."""
+    return eligible_set(state or make_state(), rules or RuleSet(), budget, now, CATALOG, trigger)
 
 
 def option(es, offer_type, category=None):
@@ -129,6 +133,33 @@ def test_all_rules_pass_gives_every_offer_type():
         (OfferType.NUDGE, None),
     }
     assert es.customer_id == OUT_ID and es.at == NOW
+
+
+@pytest.mark.parametrize("trigger", list(TriggerKind))
+def test_a_nudge_is_eligible_only_on_a_reminder_trigger(trigger):
+    """A Nudge reminds of something: an abandoned cart or expiring points (GLOSSARY, QnA Q56)."""
+    es = compute(trigger=trigger)
+    has_nudge = (OfferType.NUDGE, None) in offer_types(es)
+    assert has_nudge == (trigger in {TriggerKind.CART_ABANDONED, TriggerKind.POINTS_EXPIRING})
+    if has_nudge:
+        assert "nudge" not in es.dropped
+    else:
+        assert es.dropped["nudge"] == "nudge_needs_reminder"
+    assert {o.offer_type for o in es.options} - {OfferType.NUDGE} == {
+        OfferType.PCT_CATEGORY,
+        OfferType.FLAT_ABOVE_MIN,
+        OfferType.FREE_SHIPPING,
+        OfferType.POINTS_MULTIPLIER,
+    }
+
+
+def test_the_reminder_triggers_are_cart_and_points():
+    assert NUDGE_TRIGGERS == {TriggerKind.CART_ABANDONED, TriggerKind.POINTS_EXPIRING}
+
+
+def test_no_trigger_means_no_nudge():
+    es = compute(trigger=None)
+    assert (OfferType.NUDGE, None) not in offer_types(es) and es.dropped["nudge"] == "nudge_needs_reminder"
 
 
 def test_opt_out_short_circuits():
@@ -516,5 +547,28 @@ def test_cli_eligible_demo(capsys):
     out = capsys.readouterr().out
     assert "pct_category" in out and "fashion" in out
     assert "binding: max_pct_by_loyalty_tier" in out
-    assert "nudge" in out
+    assert (
+        "Trigger: daily sweep" in out and "nudge" in out and "dropped (binding: nudge_needs_reminder)" in out
+    )
     assert "send window" in out
+
+
+def test_cli_eligible_on_an_abandoned_cart_lists_the_nudge(capsys):
+    assert main(["eligible", "--demo", "--trigger", "cart_abandoned"]) == 0
+    out = capsys.readouterr().out
+    assert "Trigger: cart abandoned" in out and "nudge_needs_reminder" not in out
+    assert any(line.startswith("nudge ") and "worst ₹0" in line for line in out.splitlines())
+
+
+# --- Binding Rule of an empty Eligible Set (T42) -------------------------------------------------
+
+
+def test_an_empty_set_names_the_rule_that_dropped_the_most_options():
+    es = compute(rules=RuleSet(weekly_budget=0.0), trigger=TriggerKind.DAILY_SWEEP)
+    assert es.options == ()
+    assert empty_set_binding(es) == "weekly_budget"
+
+
+def test_a_set_with_an_option_left_has_no_empty_set_binding():
+    assert empty_set_binding(compute(trigger=TriggerKind.DAILY_SWEEP)) is None
+    assert empty_set_binding(compute(rules=RuleSet(weekly_budget=0.0))) is None  # the cart's Nudge is left

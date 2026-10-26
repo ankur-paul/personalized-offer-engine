@@ -47,7 +47,7 @@ from offer_engine.domain import (
     ValidationResult,
 )
 from offer_engine.lift import segment_lift
-from offer_engine.rules import eligible_set, offer_cost
+from offer_engine.rules import eligible_set, empty_set_binding, offer_cost
 from offer_engine.rules_store import current_rules
 from offer_engine.trace import StageListener
 from offer_engine.validation import validate
@@ -231,7 +231,9 @@ def _decide(
     rec = decision_trace.Recorder(on_stage, keep=trace)
     rec.add(decision_trace.trigger_stage, trigger, state, now)
     rec.add(decision_trace.customer_stage, state, now)
-    es = _eligible(state, rules, budget, now, catalog, lift_estimator or default_lift_estimator(conn, now))
+    es = _eligible(
+        state, rules, budget, now, catalog, lift_estimator or default_lift_estimator(conn, now), trigger
+    )
     rec.add(decision_trace.checks_stage, state, rules, budget, now, es)
 
     def decision(chooser_used: Chooser, proposal: Proposal | None, binding: str | None, validation=None):
@@ -260,7 +262,7 @@ def _decide(
     is_rules = primary is rules_chooser.choose
     chooser_used = Chooser.RULES if is_rules else Chooser.AGENT
     started = time.perf_counter()
-    proposal, result = _attempt(primary, es, state, catalog, rules, budget, now)
+    proposal, result = _attempt(primary, es, state, catalog, rules, budget, now, trigger)
     _trace_chooser(rec, primary, es, state, catalog, rules, time.perf_counter() - started, result)
     rec.add(decision_trace.validation_stage, result)
     agent_output = getattr(primary, "last_output", None)
@@ -269,7 +271,7 @@ def _decide(
         failures, rejected = rejected, []
     elif rejected:
         chooser_used = Chooser.FALLBACK
-        proposal, fallback = _attempt(rules_chooser.choose, es, state, catalog, rules, budget, now)
+        proposal, fallback = _attempt(rules_chooser.choose, es, state, catalog, rules, budget, now, trigger)
         failures = list(fallback.failures)
         rec.add(decision_trace.fallback_stage, rejected, proposal, fallback)
     if failures:
@@ -280,7 +282,7 @@ def _decide(
         return _write(conn, failed, None, es, state, catalog, rules, agent_output, rec)
 
     validation = ValidationResult(True, tuple(rejected)) if proposal.offer_type or rejected else None
-    binding = None
+    binding = empty_set_binding(es)
     if proposal.offer_type is not None:
         binding = _option(es, proposal).binding_rules.get(MAIN_PARAM.get(proposal.offer_type, ""))
     return _write(
@@ -330,14 +332,15 @@ def _eligible(
     now: datetime,
     catalog: Catalog,
     estimate: LiftEstimator,
+    trigger: TriggerKind | None = None,
 ) -> EligibleSet:
-    """The Eligible Set with each option's Estimated Lift."""
-    es = eligible_set(state, rules, budget, now, catalog)
+    """The Eligible Set with each option's Estimated Lift. The Trigger decides whether a Nudge is in it."""
+    es = eligible_set(state, rules, budget, now, catalog, trigger)
     return replace(es, options=tuple(replace(o, estimated_lift=estimate(state, o)) for o in es.options))
 
 
 def _attempt(
-    choose: ChooserFn, es, state, catalog, rules, budget, now
+    choose: ChooserFn, es, state, catalog, rules, budget, now, trigger
 ) -> tuple[Proposal | None, ValidationResult]:
     """The chooser's Proposal and its Validation result; an exception is a failure too, with no checks run."""
     try:
@@ -345,7 +348,7 @@ def _attempt(
     except Exception as exc:  # noqa: BLE001 — the agent may be down; any error falls back
         return None, ValidationResult(False, (f"{CHOOSER_ERROR}: {type(exc).__name__}: {exc}",))
     checker = functools.partial(caption_check.check, validity_days=rules.offer_validity_days)
-    return proposal, validate(proposal, state, rules, budget, now, catalog, checker)
+    return proposal, validate(proposal, state, rules, budget, now, catalog, checker, trigger)
 
 
 def _option(es: EligibleSet, proposal: Proposal) -> EligibleOption | None:
@@ -528,7 +531,13 @@ def decide_many(
         override = _override.get()
         if override is not None and override.prefetch is not None and chooser is None:
             eligible = functools.partial(
-                _eligible, rules=rules, budget=budget, now=now, catalog=catalog, estimate=lift_estimator
+                _eligible,
+                rules=rules,
+                budget=budget,
+                now=now,
+                catalog=catalog,
+                estimate=lift_estimator,
+                trigger=trigger,
             )
             override.prefetch(
                 [states[cid] for cid in batch if cid in states], eligible, catalog, rules, trigger

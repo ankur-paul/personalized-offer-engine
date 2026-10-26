@@ -272,3 +272,15 @@ def test_cli_shows_the_agents_rejected_proposal(world, customer_id, agent, clean
     assert "chooser=fallback" in out and "valid (Fallback)" in out
     assert re.search(r"agent's rejected proposal: \{.*\"caption\": \"Hurry!\"", out)
     assert "invented_urgency: hurry" in out
+
+
+def test_an_empty_eligible_set_is_no_offer_without_calling_claude(world, customer_id, agent):
+    """T42: with the weekly budget spent and no Nudge on the Daily Sweep, there is nothing to ask the agent."""
+    from offer_engine.rules_store import save_rules
+
+    client = agent(FakeClient(error=AssertionError("Claude was called")))
+    save_rules(world, RuleSet(weekly_budget=0.0), author="test")
+    d = pipeline.decide(world, customer_id, TriggerKind.DAILY_SWEEP, NOW)
+    assert client.calls == []
+    assert d.offer_id is None and d.chooser == Chooser.AGENT and d.binding_rule == "weekly_budget"
+    assert d.reason == "No Offer: the Rules leave no option"

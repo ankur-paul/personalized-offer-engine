@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 from datetime import datetime, timedelta
 
 from offer_engine.domain import (
@@ -20,6 +21,7 @@ from offer_engine.domain import (
     OfferType,
     ParamRange,
     RuleSet,
+    TriggerKind,
 )
 
 # Lower bounds that no Rule sets: smaller Offers aren't worth sending.
@@ -32,6 +34,11 @@ MIN_POINTS_MULTIPLIER = 1.5
 POINTS_PER_RUPEE = 0.1
 
 RECENT_CATEGORY_DAYS = 90
+
+# A Nudge reminds the Customer of something, so only these Triggers allow one (GLOSSARY, QnA Q56). Elsewhere it
+# is dropped with this name as its Binding Rule.
+NUDGE_TRIGGERS = frozenset({TriggerKind.CART_ABANDONED, TriggerKind.POINTS_EXPIRING})
+NUDGE_NEEDS_REMINDER = "nudge_needs_reminder"
 
 _TESTER_SUFFIX = re.compile(r"-t\d+$")
 
@@ -85,8 +92,14 @@ def offer_cost(
 
 
 def eligible_set(
-    state: CustomerState, rules: RuleSet, budget: BudgetState, now: datetime, catalog: Catalog
+    state: CustomerState,
+    rules: RuleSet,
+    budget: BudgetState,
+    now: datetime,
+    catalog: Catalog,
+    trigger: TriggerKind | None = None,
 ) -> EligibleSet:
+    """`trigger` decides whether a Nudge is eligible; without one there is nothing to remind about, so no Nudge."""
     customer = state.customer
     stop = _short_circuit(state, rules, now)
     if stop is not None:
@@ -103,9 +116,23 @@ def eligible_set(
     _add(options, dropped, _flat_above_min(money, catalog, rules))
     _add(options, dropped, _free_shipping(money, rules))
     _add(options, dropped, _points_multiplier(money, catalog, rules))
-    options.append(EligibleOption(OfferType.NUDGE, None, {}, {}, worst_case_cost=0.0))
+    if trigger in NUDGE_TRIGGERS:
+        options.append(EligibleOption(OfferType.NUDGE, None, {}, {}, worst_case_cost=0.0))
+    else:
+        dropped[str(OfferType.NUDGE)] = NUDGE_NEEDS_REMINDER
 
     return EligibleSet(customer.id, now, tuple(options), _send_window(now, rules), dropped=dropped)
+
+
+def empty_set_binding(es: EligibleSet) -> str | None:
+    """The Binding Rule of a No Offer that the Rules forced by dropping every option, e.g. `weekly_budget` once
+    the budget is spent: the Rule that dropped the most options, the first listed on a tie. None when an option is
+    left, since then the chooser chose No Offer. The Nudge's `nudge_needs_reminder` counts only when nothing else
+    dropped an option."""
+    if es.options or not es.dropped:
+        return None
+    reasons = [r for r in es.dropped.values() if r != NUDGE_NEEDS_REMINDER] or list(es.dropped.values())
+    return Counter(reasons).most_common(1)[0][0]
 
 
 # --- Short-circuits ----------------------------------------------------------------------------

@@ -40,6 +40,7 @@ def test_group_of_sorts_offers_and_no_offers():
     assert group_of("nudge", None) == "nudge"
     assert group_of(None, None) == "nothing"
     assert group_of(None, "frequency_cap_count") == "frequency_cap"
+    assert group_of(None, "weekly_budget") == "budget"
     assert group_of(None, "holdout_pct") == "other_rules"
 
 
@@ -50,16 +51,30 @@ def test_days_add_up_to_each_days_decisions_with_their_details(db):
     decide(db, "C00004", day1)
     decide(db, "C00005", day2, binding_rule="frequency_cap_count")
     decide(db, "C00006", day2, binding_rule="holdout_pct")
-    decide(db, "C00007", day2, binding_rule="opt_out")
+    decide(db, "C00007", day2, binding_rule="weekly_budget")
     decide(db, "C00001-t42", day2, offer_type="nudge")  # Tester copy: left out
     decide(db, "C00008", "2026-11-30T10:00:00", offer_type="nudge")  # before the clock start
 
     days = decisions_by_day(db)
     assert [d["day"] for d in days] == ["2026-12-01", "2026-12-02"]
-    assert days[0]["groups"] == {"paid": 1, "nudge": 1, "nothing": 1, "frequency_cap": 0, "other_rules": 0}
+    assert days[0]["groups"] == {
+        "paid": 1,
+        "nudge": 1,
+        "nothing": 1,
+        "frequency_cap": 0,
+        "budget": 0,
+        "other_rules": 0,
+    }
     assert days[0]["offers"] == {"free_shipping": 1, "nudge": 1} and days[0]["no_offer"] == {"none": 1}
-    assert days[1]["groups"] == {"paid": 0, "nudge": 0, "nothing": 0, "frequency_cap": 1, "other_rules": 2}
-    assert days[1]["no_offer"] == {"frequency_cap_count": 1, "holdout_pct": 1, "opt_out": 1}
+    assert days[1]["groups"] == {
+        "paid": 0,
+        "nudge": 0,
+        "nothing": 0,
+        "frequency_cap": 1,
+        "budget": 1,
+        "other_rules": 1,
+    }
+    assert days[1]["no_offer"] == {"frequency_cap_count": 1, "holdout_pct": 1, "weekly_budget": 1}
     assert list(days[1]["groups"]) == list(GROUPS)
 
 

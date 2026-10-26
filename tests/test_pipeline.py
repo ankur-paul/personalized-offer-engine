@@ -98,7 +98,7 @@ def test_holdout_customer_gets_no_offer(world, holdout_id):
 def test_eligible_customer_gets_a_queued_offer_inside_the_eligible_set(world, eligible_id):
     catalog = load_catalog(world)
     state = load_customer_state(world, eligible_id, NOW)
-    es = eligible_set(state, RuleSet(), budget_state(world, RuleSet(), NOW), NOW, catalog)
+    es = eligible_set(state, RuleSet(), budget_state(world, RuleSet(), NOW), NOW, catalog, CART)
 
     d = pipeline.decide(world, eligible_id, CART, NOW)
     assert d.chooser == Chooser.RULES and d.validation.ok and d.validation.failures == ()
@@ -119,6 +119,28 @@ def test_eligible_customer_gets_a_queued_offer_inside_the_eligible_set(world, el
     assert offer["caption"] and not re.search(r"\d", offer["caption"])
     row = decision_row(world, d.id)
     assert row["offer_id"] == d.offer_id and row["validation_ok"] == 1 and row["trigger"] == "cart_abandoned"
+
+
+def nudge_only(state, option) -> float:
+    """An Estimated Lift under which only the free Nudge is worth sending."""
+    return 0.5 if option.offer_type == OfferType.NUDGE else -1.0
+
+
+def test_the_daily_sweep_never_sends_a_nudge_but_an_abandoned_cart_may(world, eligible_id):
+    """QnA Q56: a Nudge needs something to remind about."""
+    sweep = pipeline.decide(world, eligible_id, TriggerKind.DAILY_SWEEP, NOW, lift_estimator=nudge_only)
+    assert sweep.offer_id is None and sweep.binding_rule is None
+    cart = pipeline.decide(world, eligible_id, CART, NOW + timedelta(hours=1), lift_estimator=nudge_only)
+    assert offer_row(world, cart.offer_id)["offer_type"] == OfferType.NUDGE
+
+
+def test_no_option_left_records_the_rule_that_dropped_them(world, eligible_id):
+    """With the weekly budget spent and no Nudge on the sweep, the Decision names the budget, not "nothing worth
+    sending"."""
+    save_rules(world, RuleSet(weekly_budget=0.0), author="test")
+    d = pipeline.decide(world, eligible_id, TriggerKind.DAILY_SWEEP, NOW)
+    assert d.offer_id is None and d.binding_rule == "weekly_budget"
+    assert "leave no option" in d.reason
 
 
 def test_binding_rule_is_the_main_parameters_limit(world, eligible_id):

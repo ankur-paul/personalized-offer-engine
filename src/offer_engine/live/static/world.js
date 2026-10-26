@@ -7,6 +7,7 @@ const GROUPS = [
   ["nudge", "Nudge (₹0)"],
   ["nothing", "No Offer: nothing worth sending"],
   ["frequency_cap", "No Offer: frequency cap"],
+  ["budget", "No Offer: weekly budget spent"],
   ["other_rules", "No Offer: other Rules"],
 ];
 const OFFER_TYPES = {
@@ -16,7 +17,8 @@ const OFFER_TYPES = {
 const RULES = {
   none: "nothing worth sending", frequency_cap_count: "frequency cap", holdout_pct: "Holdout", opt_out: "Opt-out",
   cooldown_days_after_redemption: "cooldown after a Redemption", fatigue_dismissals: "Fatigue Pause",
-  min_days_since_signup: "days since signup", weekly_budget: "weekly budget", per_offer_cost_cap: "per-offer cost cap",
+  min_days_since_signup: "days since signup", weekly_budget: "weekly budget spent", per_offer_cost_cap: "per-offer cost cap",
+  nudge_needs_reminder: "nothing to remind about",
 };
 // Response Classes, with the Glossary's own words for each.
 const CLASSES = [
@@ -269,7 +271,7 @@ export function mountWorld(root, options = {}) {
 
   function details(d) {
     const offers = Object.entries(d.offers).filter(([t]) => t !== "nudge");
-    const stops = Object.entries(d.no_offer).filter(([r]) => r !== "none" && r !== "frequency_cap_count");
+    const stops = Object.entries(d.no_offer).filter(([r]) => !["none", "frequency_cap_count", "weekly_budget"].includes(r));
     const notes = [];
     if (offers.length) notes.push(`Paid: ${offers.map(([t, n]) => `${OFFER_TYPES[t] ?? t} ${count.format(n)}`).join(", ")}`);
     if (stops.length) notes.push(`Other Rules: ${stops.map(([r, n]) => `${RULES[r] ?? r.replaceAll("_", " ")} ${count.format(n)}`).join(", ")}`);
