@@ -1,5 +1,5 @@
 # T41 — Live view: world charts and running totals
-**Status:** IN PROGRESS
+**Status:** DONE
 **Prereqs:** T40 · **Branch:** t41-world-charts
 
 ## Goal
@@ -42,6 +42,12 @@ To move the charts to another page: serve `/world`, include `world.js` and `worl
   Customers, and one row per chat-attached Customer: Persona Card name and case, Decisions, Offers and the latest
   Decision.
 - The pipeline still never reads Ground Truth; `live/` and `sim/` are entry-point and simulator code.
+- Done as built: the chat-attached Customers' Decisions are read in one pass, as `decisions` has no index on
+  `customer_id`; a per-row subquery took 21 s on 10k Customers, the whole `/world` takes about 0.3 s. Testers'
+  copies are left out of the charts but listed under Who decided. A refresh redraws only when `/world` returns
+  different numbers, so hover and focus stay put. `app.js` fires a `glossary` event once the Glossary loads, and
+  the module redraws so its titles get the tooltips. Checked with headless Chrome screenshots at 1280 px and 390 px
+  in both themes; hover was not tried with a mouse.
 
 ### Look and feel
 Follows T39's Look and feel (type sizes, 8 px spacing, cards, tokens, both themes, 1280 px down to 390 px), with
@@ -80,8 +86,8 @@ console and watch the charts gain a column. The header's "since 1 Dec" totals ke
 midnight. Check 1280 px and 390 px, light and dark.
 
 ## Done when
-- [ ] Four charts with legends, hover and table views, on the live page
-- [ ] Counters show today and since the clock start
-- [ ] Charts move with the clock and follow Look and feel in both themes at 1280 px and 390 px
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T41: live view world charts and running totals`
+- [x] Four charts with legends, hover and table views, on the live page
+- [x] Counters show today and since the clock start
+- [x] Charts move with the clock and follow Look and feel in both themes at 1280 px and 390 px
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T41: live view world charts and running totals`

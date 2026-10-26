@@ -3,7 +3,7 @@
 A scenario runs in a worker thread and hands each trace stage to its run as the pipeline makes it; the page reads
 the run's stages as Server-Sent Events and animates them. Stored traces of recent Decisions play back the same way.
 The page shows what the trace says and nothing more, except below the Offer stage (T40): the scenario's seeded
-outcome and a truth panel marked "Hidden from the engine". Like `commands` and `console` this is an entry point, so
+outcome and a truth panel marked "Hidden from the engine", and below that the world charts (T41). Like `commands` and `console` this is an entry point, so
 it may read Ground Truth through `sim.explain`; the pipeline and the trace still never do.
 """
 
@@ -35,12 +35,19 @@ from offer_engine.demo import runner, scenarios, snapshot
 from offer_engine.domain import OfferType
 from offer_engine.offer_bot.delivery import offer_from_row
 from offer_engine.offer_card import render_offer_card
+from offer_engine.rules_store import current_rules
 from offer_engine.sim import explain
+from offer_engine.sim.world_stats import world_stats
 from offer_engine.trace import Stage, Trace
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 GLOSSARY_PATH = Path(__file__).resolve().parents[3] / "GLOSSARY.md"
-STATIC_TYPES = {"app.js": "text/javascript", "style.css": "text/css"}
+STATIC_TYPES = {
+    "app.js": "text/javascript",
+    "style.css": "text/css",
+    "world.js": "text/javascript",
+    "world.css": "text/css",
+}
 LATEST_LIMIT = 20
 # Finished runs kept for a late or repeated stream; older ones are forgotten.
 RUNS_KEPT = 20
@@ -257,6 +264,12 @@ def create_app(
         with closing(connect(db_path)) as conn:
             return counters(conn, clock.now(conn))
 
+    @app.get("/world")
+    def get_world() -> dict[str, Any]:
+        """What the world has done since the clock start, for the world charts."""
+        with closing(connect(db_path)) as conn:
+            return world_stats(conn, clock.now(conn), current_rules(conn)[1])
+
     @app.post("/reset")
     def reset() -> dict[str, str]:
         if not busy.acquire(blocking=False):
@@ -345,9 +358,19 @@ def truth_json(view: explain.TruthView) -> dict[str, Any]:
 
 
 def counters(conn: sqlite3.Connection, now: datetime) -> dict[str, Any]:
-    """The simulated day so far: Decisions by Trigger, Offers sent, Claims, Redemptions and what they cost."""
+    """The simulated day so far, and the same since the clock start under `since_start` (QnA Q55)."""
     day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    span = (_iso(day), _iso(day + timedelta(days=1)))
+    end = _iso(day + timedelta(days=1))
+    return {
+        "time": now.strftime(TIME_FORMAT),
+        **_tally(conn, _iso(day), end),
+        "since_start": {"since": clock.START.strftime(TIME_FORMAT), **_tally(conn, _iso(clock.START), end)},
+    }
+
+
+def _tally(conn: sqlite3.Connection, start: str, end: str) -> dict[str, Any]:
+    """Decisions by Trigger, Offers sent, Claims, Redemptions and what they cost, from `start` up to `end`."""
+    span = (start, end)
     decisions = dict(
         conn.execute(
             "SELECT trigger, COUNT(*) FROM decisions WHERE at >= ? AND at < ? GROUP BY 1 ORDER BY 1", span
@@ -361,7 +384,6 @@ def counters(conn: sqlite3.Connection, now: datetime) -> dict[str, Any]:
         span,
     ).fetchone()
     return {
-        "time": now.strftime(TIME_FORMAT),
         "decisions": decisions,
         "offers_sent": sent,
         "claims": claims,
