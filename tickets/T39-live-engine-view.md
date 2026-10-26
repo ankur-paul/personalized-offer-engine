@@ -1,5 +1,5 @@
 # T39 — Live engine view: animated pipeline
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T37 · **Branch:** t39-live-engine-view
 
 ## Goal
