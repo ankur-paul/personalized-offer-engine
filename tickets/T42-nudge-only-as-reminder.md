@@ -1,5 +1,5 @@
 # T42 — A Nudge only when there is something to remind about
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T40 · **Branch:** t42-nudge-reminder
 
 ## Goal
