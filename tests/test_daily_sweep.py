@@ -157,4 +157,5 @@ def test_sweep_over_10k_customers_under_60_seconds(tmp_path):
     elapsed = time.perf_counter() - started
     conn.close()
     assert counts["sweep.offer"] + counts["sweep.no_offer"] == 10_000
+    print(f"sweep: {elapsed:.1f} s")
     assert elapsed < 60
