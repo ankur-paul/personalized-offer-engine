@@ -748,15 +748,20 @@ async function refreshCounters() {
   }
   counts.failed = false;
   const byTrigger = Object.entries(c.decisions);
-  const total = byTrigger.reduce((n, [, k]) => n + k, 0);
-  const tile = (label, value, sub = "") => `<div><dt>${label}</dt><dd>${value}${sub ? ` <span class="sub">${sub}</span>` : ""}</dd></div>`;
+  const total = (decisions) => Object.values(decisions).reduce((n, k) => n + k, 0);
+  // Today's number, then the total since the clock start, so the strip never drops to 0 at midnight (QnA Q55).
+  const s = c.since_start;
+  const start = new Date(s.since.replace(" ", "T")).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const tile = (label, value, sub = "", since = "") =>
+    `<div><dt>${label}</dt><dd>${value}${sub ? ` <span class="sub">${sub}</span>` : ""}</dd>` +
+    (since ? `<dd class="since">${since} since ${escapeHtml(start)}</dd>` : "") + "</div>";
   $("counters").innerHTML = [
     tile(withTerms("Simulation Clock"), escapeHtml(c.time)),
-    tile(`${withTerms("Decisions")} today`, inr0.format(total), escapeHtml(byTrigger.map(([t, k]) => `${words(t)} ${k}`).join(" · "))),
-    tile("Offers sent", inr0.format(c.offers_sent)),
-    tile(withTerms("Claims"), inr0.format(c.claims)),
-    tile(withTerms("Redemptions"), inr0.format(c.redemptions)),
-    tile("Offer spend", escapeHtml(rupees(c.spend))),
+    tile(`${withTerms("Decisions")} today`, inr0.format(total(c.decisions)), escapeHtml(byTrigger.map(([t, k]) => `${words(t)} ${k}`).join(" · ")), inr0.format(total(s.decisions))),
+    tile("Offers sent today", inr0.format(c.offers_sent), "", inr0.format(s.offers_sent)),
+    tile(`${withTerms("Claims")} today`, inr0.format(c.claims), "", inr0.format(s.claims)),
+    tile(`${withTerms("Redemptions")} today`, inr0.format(c.redemptions), "", inr0.format(s.redemptions)),
+    tile("Offer spend today", escapeHtml(rupees(c.spend)), "", escapeHtml(rupees(s.spend))),
   ].join("");
 }
 
@@ -1006,6 +1011,8 @@ async function main() {
     renderTicker();
   });
   await loadGlossary();
+  // The world charts (world.js) redraw their titles with Glossary tooltips once these are known.
+  document.dispatchEvent(new Event("glossary"));
   // The intro card's terms get tooltips too.
   const intro = $("card").querySelector("p:last-child");
   intro.innerHTML = withTerms(intro.textContent.replace(/\s+/g, " "));

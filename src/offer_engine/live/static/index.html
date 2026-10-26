@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Offer Engine live view</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/world.css">
   <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -41,6 +42,7 @@
           saw and why. Click a row under Latest Decisions to play back a Decision made earlier.</p>
       </article>
       <div class="panels" id="panels"></div>
+      <section id="world"></section>
     </main>
 
     <aside class="ticker" aria-labelledby="ticker-title">
@@ -51,5 +53,13 @@
   </div>
 
   <div id="tip" class="tip" role="tooltip" hidden></div>
+  <script type="module">
+    import { mountWorld } from "/static/world.js";
+    // Glossary tooltips come from app.js once its glossary has loaded.
+    const world = mountWorld(document.getElementById("world"), {
+      terms: (text) => (typeof window.withTerms === "function" ? window.withTerms(text) : null),
+    });
+    document.addEventListener("glossary", () => world.redraw());
+  </script>
 </body>
 </html>

@@ -342,14 +342,55 @@ def test_counters_count_the_simulated_day(client, world):
         )
     clock.set_now(world, day + timedelta(hours=2))
     world.commit()
-    assert client.get("/counters").json() == {
-        "time": "2026-12-01 11:00",
+    today = {
         "decisions": {"cart_abandoned": 1, "daily_sweep": 2},
         "offers_sent": 2,
         "claims": 2,
         "redemptions": 2,
         "spend": 200.5,
     }
+    assert client.get("/counters").json() == {
+        "time": "2026-12-01 11:00",
+        **today,
+        "since_start": {"since": "2026-12-01 00:00", **today},
+    }
+
+    # The next day: today starts at 0, and the totals since the clock start keep the first day (QnA Q55).
+    clock.set_now(world, after + timedelta(hours=1))
+    world.commit()
+    counts = client.get("/counters").json()
+    assert (counts["decisions"], counts["offers_sent"], counts["redemptions"], counts["spend"]) == (
+        {},
+        1,
+        1,
+        999.0,
+    )
+    assert counts["since_start"] == {
+        "since": "2026-12-01 00:00",
+        "decisions": {"cart_abandoned": 1, "daily_sweep": 2},
+        "offers_sent": 3,
+        "claims": 2,
+        "redemptions": 3,
+        "spend": 1199.5,
+    }
+
+
+def test_world_returns_every_chart_section(client, world):
+    world.execute(
+        "INSERT INTO decisions (customer_id, at, trigger, chooser, rule_version) VALUES ('C00001', ?, 'daily_sweep', 'rules', 0)",
+        ((clock.START + timedelta(hours=10)).isoformat(),),
+    )
+    world.commit()
+    stats = client.get("/world").json()
+    assert set(stats) == {"time", "since", "days", "funnel", "holdout", "truth", "choosers", "chats"}
+    assert stats["days"][0]["groups"]["nothing"] == 1
+    assert sum(r["customers"] for r in stats["truth"]) == 50
+
+
+def test_the_world_module_files_are_served(client):
+    assert "export function mountWorld" in client.get("/static/world.js").text
+    assert client.get("/static/world.css").headers["content-type"].startswith("text/css")
+    assert 'id="world"' in client.get("/").text
 
 
 def test_reset_restores_the_snapshot(db_path, world, tmp_path):

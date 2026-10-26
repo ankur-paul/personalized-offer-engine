@@ -1,0 +1,128 @@
+/* The world charts (T41): every rule scoped under .world, so the module can move to another page. Reads the page's
+   tokens (--surface, --border, --text, --muted, --tint) and adds a chart-only categorical palette for marks and
+   legend swatches, never for text or status (T41 Look and feel). */
+
+.world {
+  container-type: inline-size;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .world {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+  }
+}
+
+:root[data-theme="dark"] .world {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+}
+
+.world .world-head { display: grid; gap: 0; }
+.world .world-head h2 { font-size: 20px; font-weight: 600; }
+.world .world-head p { font-size: 14px; color: var(--muted); }
+
+.world .world-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+@container (min-width: 760px) {
+  .world .world-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.world .chart {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+.world .chart.truth { background: var(--tint); }
+.world .chart h3 { font-size: 16px; font-weight: 600; }
+.world .chart .what { font-size: 14px; color: var(--muted); }
+.world .chart .hidden-tag {
+  display: inline-flex;
+  width: fit-content;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px dashed var(--muted);
+  border-radius: 8px;
+  padding: 0 8px;
+}
+.world .chart.stale .plot { opacity: 0.6; }
+
+.world .legend { display: flex; flex-wrap: wrap; gap: 0 16px; list-style: none; padding: 0; margin: 0; font-size: 14px; color: var(--muted); }
+.world .legend li { display: inline-flex; align-items: center; gap: 8px; }
+.world .swatch { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+
+.world svg { display: block; width: 100%; overflow: visible; }
+.world svg text { fill: var(--muted); font: 14px/1 var(--font, system-ui, sans-serif); font-variant-numeric: tabular-nums; }
+.world svg text.value { fill: var(--text); font-weight: 600; }
+.world svg .grid line { stroke: var(--border); stroke-width: 1; shape-rendering: crispEdges; }
+.world svg .hit { fill: transparent; cursor: default; outline: none; }
+.world svg g.col:hover .seg, .world svg g.col:focus .seg,
+.world svg g.row:hover .seg, .world svg g.row:focus .seg { filter: brightness(1.12); }
+.world svg g.col:focus-visible .hit, .world svg g.row:focus-visible .hit { stroke: var(--accent, currentColor); stroke-width: 2; }
+
+.world .tiles { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+.world .tiles > div { display: grid; gap: 0; min-width: 0; }
+.world .tiles dt { font-size: 14px; color: var(--muted); }
+.world .tiles dd { margin: 0; font-size: 20px; font-weight: 600; }
+.world .tiles .sub { font-size: 14px; font-weight: 400; color: var(--muted); }
+
+.world details { font-size: 14px; }
+.world summary { cursor: pointer; color: var(--muted); min-height: 24px; }
+.world .table-wrap { overflow-x: auto; margin-top: 8px; }
+.world table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.world th, .world td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.world th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.world td.num, .world th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.world .people { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; font-size: 14px; }
+.world .people li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 16px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.world .people li:last-child { border-bottom: 0; }
+.world .people .who { font-weight: 600; }
+.world .people .case, .world .people .latest { color: var(--muted); }
+.world .people .latest { grid-column: 1 / -1; }
+.world .people .count { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.world .empty { font-size: 14px; color: var(--muted); }
+
+.world-tip {
+  position: fixed;
+  z-index: 20;
+  max-width: 320px;
+  pointer-events: none;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}
+.world-tip .tip-title { color: var(--muted); }
+.world-tip .tip-row { display: grid; grid-template-columns: 16px auto minmax(0, 1fr); gap: 0 8px; align-items: center; }
+.world-tip .tip-row .key { width: 12px; height: 2px; border-radius: 1px; }
+.world-tip .tip-row strong { font-variant-numeric: tabular-nums; }
+.world-tip .tip-note { color: var(--muted); }
