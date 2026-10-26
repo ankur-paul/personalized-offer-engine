@@ -225,3 +225,7 @@ Decided: scenario buttons on the live engine page fire and animate each scenario
 **Q52. Which Customer does `real-discount` use? (T37, 2026-10-26)**
 Options: C01588, a Persuadable with no chat, whom the rules chooser gives 7% off fashion; keep C01377 and retitle the scenario around the Nudge; keep C01377 and let any Offer pass.
 Decided: C01588. C01377 has a Customer Bot chat, so the agent decides for her, and Claude gave her a free Nudge on her grocery cart instead of the rules chooser's 6% off fashion. The scenario now shows no agent caption and no Customer Bot reply: its outcome is the plain Ground Truth draw.
+
+**Q53. How should the live engine view look? (T39, 2026-10-26)**
+Asked: will the page be easy to understand, easy on the eyes and clean? T39 set the behaviour but no layout or visual rules, and by T40 the page holds about eight panels.
+Decided: T39 gets a "Look and feel" section. Scenarios and the ticker sit in a left rail, the diagram goes across the top, and below it one card shows the current stage. T40's panels appear only after the Offer stage. Glossary terms get tooltips taken from `GLOSSARY.md`. T38's scenario lines become a numbered "What the scenario did" list. The page uses one accent colour plus green, red and grey for status, the system font and an 8 px spacing grid. The earlier T39 claim was cancelled before any work, so the ticket is claimed fresh with this section in it.

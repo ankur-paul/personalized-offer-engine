@@ -10,7 +10,7 @@ bot with the laptop off until judging ends. Mandatory (PLAN §7, §8 cut line; Q
 - Pick the host (Railway, Fly.io or a free-tier VM) that gives a persistent volume for SQLite and runs one
   long-lived container. Record the choice and why in Details as `Done as built`.
 - `Dockerfile` (or the host's equivalent): uv install, `offer-engine start` as the entry point; the DB on the
-  persistent volume (`DB_PATH`).
+  persistent volume (`DB_PATH`). The image includes `GLOSSARY.md`: the live page reads it for its tooltips (T39).
 - `docs/DEPLOY.md`: one-time setup (secrets from `.env` into the host's secret store, volume, first
   `generate --customers 10000`, `lift fit`, `chats link-showcase`), redeploy, logs, how to stop.
 - Console exposed with `CONSOLE_PASSWORD` set (gate from T21).

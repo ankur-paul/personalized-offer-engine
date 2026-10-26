@@ -34,8 +34,13 @@ Closes the demo pass: T39 → T40, then T29 deploys it (QnA Q45, Q49, Q50, Q51).
   - **Counters strip**, refreshed every 2 s.
   - **Controls**: Reset (with a confirm step on the page, not a browser dialog) and an Agent: Replay / Live
     switch showing the current mode.
+  - Placement follows T39 Details › Look and feel: the counters strip and controls go in a bar above the diagram,
+    and the outcome and truth panels go below the stage card and appear only after the Offer stage.
 
 ## Details
+- The new panels follow T39's Look and feel rules: same colour tokens, type sizes and spacing, Glossary tooltips
+  on terms such as Response Class and Estimated Lift, and no new hues. The truth panel stands apart by a tinted
+  background and its label (QnA Q53).
 - The pipeline and the trace still never read Ground Truth. `live/` may import `offer_engine.sim` because it's an
   entry point; the boundary test doesn't change. Add a test that `trace.py` output for a scenario holds no
   Ground Truth field names.
@@ -66,5 +71,6 @@ With `start` running, on http://localhost:8502:
 - [ ] Outcome panel shows the Offer Card, the chance with its nudge, the flip and the bot's reply
 - [ ] Truth panel shows the true chances against Estimated Lift, marked simulator-only
 - [ ] Counters, Reset and Agent Replay / Live work
+- [ ] The new panels follow T39's Look and feel at 1280 px and 390 px, in both themes
 - [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
 - [ ] Committed: `T40: live view outcome, truth panel and controls`
