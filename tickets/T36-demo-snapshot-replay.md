@@ -1,5 +1,5 @@
 # T36 — Demo snapshot and agent replay
-**Status:** IN PROGRESS
+**Status:** DONE
 **Prereqs:** — · **Branch:** t36-demo-snapshot-replay
 
 ## Goal
@@ -43,6 +43,15 @@ demo pass: T35 / T36 → T37 → T38 / T39 → T40 (PLAN "Assumed (approved 2026
   existing error path. In a Customer Bot, the bot flips on Ground Truth alone, as it does today when the agent
   fails.
 - `offline.agent_client` (T26) keeps its own `sim_agent_cache`. Don't change it.
+- Done as built: `pipeline.default_chooser` changed too. In `replay` mode it picks the agent with no API key, else
+  the Check's last command would get the rules chooser. `_insert_offer` passes the Customer, the Decision time and
+  an attempt number to `new_code`, so a taken seeded code moves to the next attempt instead of looping.
+- Done as built: the snapshot is written in rollback-journal mode, one file with no `-wal` beside it. On the
+  593 MB 10k world, `demo snapshot` took 4.5–6.8 s and `demo reset` 12.4 s.
+- Done as built: `tests/test_demo_snapshot.py` uses the 50-Customer `world` fixture; there is no 300-Customer one.
+- Done as built: `ANTHROPIC_API_KEY=` on the command line doesn't unset the key (`read_env` falls back to `.env`
+  for an empty variable), so the Check ran with the key emptied in `.env`. Same code `POE-G1H2WD`, caption and
+  reason as the recorded run.
 
 ## Tests
 - `tests/test_replay.py`, with a fake client counting calls:
@@ -66,8 +75,8 @@ AGENT_MODE=replay DEMO_SEED=7 ANTHROPIC_API_KEY= uv run offer-engine trigger car
 The last command prints the same Offer code, caption and reason as the recorded run, with no API key set.
 
 ## Done when
-- [ ] `demo snapshot` and `demo reset` work, and reset doesn't break other open connections
-- [ ] `AGENT_MODE=replay` plays recorded answers with no API call, for the offer agent and Customer Bots
-- [ ] `DEMO_SEED` makes Offer codes repeatable
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T36: demo snapshot and agent replay`
+- [x] `demo snapshot` and `demo reset` work, and reset doesn't break other open connections
+- [x] `AGENT_MODE=replay` plays recorded answers with no API call, for the offer agent and Customer Bots
+- [x] `DEMO_SEED` makes Offer codes repeatable
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T36: demo snapshot and agent replay`

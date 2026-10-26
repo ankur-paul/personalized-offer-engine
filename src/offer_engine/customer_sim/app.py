@@ -33,15 +33,24 @@ def parse_code(caption: str | None) -> str | None:
 
 
 def agent_client(settings: Settings) -> Any | None:
-    """The role-play agent's client, or None (every Offer then gets the plain Ground Truth flip)."""
-    if not settings.anthropic_api_key or not settings.fast_agent_model:
+    """The role-play agent's client, or None (every Offer then gets the plain Ground Truth flip). Unless
+    `AGENT_MODE` is `live` it is a `ReplayClient`, which in replay mode needs no key for a recorded answer; a
+    missing one flips on Ground Truth alone."""
+    if not settings.fast_agent_model or not (settings.anthropic_api_key or settings.agent_mode == "replay"):
         log.warning("ANTHROPIC_API_KEY or FAST_AGENT_MODEL unset; Customer Bots reply without the agent")
         return None
-    import anthropic
+    real = None
+    if settings.anthropic_api_key:
+        import anthropic
 
-    return anthropic.Anthropic(
-        api_key=settings.anthropic_api_key, max_retries=1, timeout=AGENT_TIMEOUT_SECONDS
-    )
+        real = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key, max_retries=1, timeout=AGENT_TIMEOUT_SECONDS
+        )
+    if settings.agent_mode == "live":
+        return real
+    from offer_engine.demo.replay import ReplayClient
+
+    return ReplayClient(real, settings.agent_mode)
 
 
 def build_app(settings: Settings, username: str, token: str, client: Any | None) -> Application:

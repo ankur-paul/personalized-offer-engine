@@ -19,7 +19,8 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def no_agent_calls(request, monkeypatch):
-    """The pipeline never calls the Claude API in tests, whatever `.env` holds, unless the test is `live`."""
+    """The pipeline never calls the Claude API or replays recordings in tests, and draws random Offer codes, whatever
+    `.env` holds, unless the test is `live`."""
     if "live" in request.keywords:
         return
     from dataclasses import replace
@@ -27,7 +28,9 @@ def no_agent_calls(request, monkeypatch):
     from offer_engine import config, pipeline
 
     monkeypatch.setattr(
-        pipeline, "load_settings", lambda: replace(config.load_settings(), anthropic_api_key=None)
+        pipeline,
+        "load_settings",
+        lambda: replace(config.load_settings(), anthropic_api_key=None, agent_mode="live", demo_seed=None),
     )
 
 
