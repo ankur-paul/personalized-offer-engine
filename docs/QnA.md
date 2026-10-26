@@ -244,3 +244,11 @@ Decided: today's number and, beneath it, the total since the clock start, so the
 **Q56. Should a ₹0 Nudge be held back? (left to Claude)**
 Options: Nudges skip the frequency cap; the Daily Sweep sends no Nudges; price each message's opt-out risk into the value; leave it.
 Decided: a Nudge is eligible only when there is something to remind about, an abandoned cart or expiring points, as `GLOSSARY.md` defines it. A Nudge from the Daily Sweep, a long gap, a first delivery or `/offers` reminds the Customer of nothing, yet it uses one of the two weekly slots and risks an opt-out. Skipping the cap would let the sweep message 7,000 Customers a day, which is spam. Pricing opt-out risk needs a new Rule and tuning. Built test-first in T42.
+
+## Round 14: live view design pass (2026-10-26)
+
+A design critique of the live view at 1280 px found that playback often happened off screen, a No Offer ended on a green node, and raw rule keys showed in plain-word text. T43 fixes these.
+
+**Q57. Where does Latest Decisions go in the rail? (T43)**
+Options: below the scenario groups, as T39's Look and feel set it; above them.
+Decided: above them. Below 11 scenario buttons the ticker sat about 1,500 px down, so a viewer had to scroll to find it, and clicking a row played the trace out of sight. With the ticker on top, both ways to start a playback are above the fold. Narrow screens keep T39's order.

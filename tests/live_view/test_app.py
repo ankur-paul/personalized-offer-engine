@@ -13,7 +13,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from offer_engine import clock, config, pipeline
+from offer_engine import clock, config, personas, pipeline, testers
 from offer_engine.choosers import rules_chooser
 from offer_engine.db import load_catalog
 from offer_engine.demo import runner, scenarios, snapshot
@@ -21,6 +21,7 @@ from offer_engine.demo.scenarios import Expect, Scenario
 from offer_engine.domain import Chooser, OfferType, TriggerKind
 from offer_engine.live import app as live_app
 from offer_engine.live.app import Run, create_app, first_sentence, read_glossary
+from offer_engine.personas import PersonaCard
 from offer_engine.sim import ground_truth
 from offer_engine.sim.world import outcomes
 
@@ -76,8 +77,13 @@ def db_path(world, monkeypatch, gate):
 
 
 @pytest.fixture
-def client(db_path):
-    return TestClient(create_app(db_path, run_scenario=run_with_fake_agent))
+def personas_dir(tmp_path):
+    return tmp_path / "personas"
+
+
+@pytest.fixture
+def client(db_path, personas_dir):
+    return TestClient(create_app(db_path, run_scenario=run_with_fake_agent, personas_dir=personas_dir))
 
 
 def events(client: TestClient, run_id: str) -> list[tuple[str, dict]]:
@@ -191,12 +197,29 @@ def test_latest_lists_the_newest_decisions_first_with_their_offer(client):
         "id": stopped,
         "time": "2026-12-01 00:00",
         "customer": HOLDOUT,
+        "customer_name": None,
         "trigger": "cart_abandoned",
         "offer": "No Offer",
         "offer_id": None,
         "traced": True,
     }
     assert latest[1]["offer"].startswith("free_shipping")
+
+
+def test_latest_names_each_customer_with_a_persona_card(client, world, personas_dir):
+    personas.save(
+        PersonaCard(HOLDOUT, "regular", "Asha Verma", "A card.", True, "2026-10-26T00:00:00", 1, 50),
+        personas_dir,
+    )
+    run(client, "offer")
+    run(client, "holdout")
+    named = lambda: [(d["customer"], d["customer_name"]) for d in client.get("/decisions/latest").json()]
+    assert named() == [(HOLDOUT, "Asha Verma"), (NO_CHAT, None)]
+    # A Tester's copy carries its source Customer's name.
+    copy = testers.create_tester_copy(world, HOLDOUT, 42)
+    world.execute("UPDATE decisions SET customer_id = ? WHERE id = (SELECT MAX(id) FROM decisions)", (copy,))
+    world.commit()
+    assert named()[0] == (copy, "Asha Verma")
 
 
 def test_glossary_has_every_term_with_one_sentence(client):

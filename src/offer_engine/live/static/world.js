@@ -97,6 +97,16 @@ function offerText(latest) {
   }
 }
 
+// Keeps a Glossary term's tooltip on its first use in a card only, and never in a heading (T43). Terms are the
+// elements `opts.terms` marks with `data-term`.
+function firstUseOnly(card) {
+  const seen = new Set();
+  for (const term of card.querySelectorAll("[data-term]")) {
+    if (term.closest("h2, h3") || seen.has(term.dataset.term)) term.replaceWith(term.textContent);
+    else seen.add(term.dataset.term);
+  }
+}
+
 function legend(items) {
   return `<ul class="legend">${items
     .map(([label, i]) => `<li><span class="swatch" style="background:${series(i)}"></span>${esc(label)}</li>`)
@@ -112,14 +122,14 @@ function table(head, rows) {
 
 const CARDS = `
   <section class="chart" data-chart="days">
-    <h3 data-terms>Decisions per simulated day</h3>
+    <h3>Decisions per simulated day</h3>
     <p class="what" data-terms>Every Decision of each day, by what came out and, for No Offer, which Rule stopped it.</p>
     <div class="legend-slot"></div>
     <div class="plot"></div>
     <details><summary>Show table</summary><div class="table-wrap"></div></details>
   </section>
   <section class="chart" data-chart="funnel">
-    <h3 data-terms>Offers sent, Claimed and Redeemed</h3>
+    <h3>Offers sent, Claimed and Redeemed</h3>
     <p class="what" data-terms>The Holdout gets no Offers, so the gap in orders per 100 Customers outside and inside it is what Offers changed.</p>
     <div class="plot"></div>
     <dl class="tiles"></dl>
@@ -127,7 +137,7 @@ const CARDS = `
   </section>
   <section class="chart truth" data-chart="truth">
     <span class="hidden-tag">Hidden from the engine: simulator only</span>
-    <h3 data-terms>Who got the paid Offers, by Response Class</h3>
+    <h3>Who got the paid Offers, by Response Class</h3>
     <p class="what" data-terms>If the engine found the Customers an Offer moves, Persuadables' share of paid Offers would sit above their share of Customers, and Sure Things' below.</p>
     <div class="legend-slot"></div>
     <div class="plot"></div>
@@ -135,7 +145,7 @@ const CARDS = `
     <details><summary>Show table</summary><div class="table-wrap"></div></details>
   </section>
   <section class="chart" data-chart="choosers">
-    <h3 data-terms>Who decided</h3>
+    <h3>Who decided</h3>
     <p class="what"></p>
     <dl class="tiles"></dl>
     <ul class="people"></ul>
@@ -407,6 +417,7 @@ export function mountWorld(root, options = {}) {
     renderTruth();
     renderChoosers();
     for (const el of root.querySelectorAll("[data-terms]")) el.innerHTML = terms(el.textContent);
+    root.querySelectorAll(".chart").forEach(firstUseOnly);
     for (const c of root.querySelectorAll(".chart")) c.classList.remove("stale");
     if (focused) root.querySelector(`[data-tip="${focused}"]`)?.focus();
   }

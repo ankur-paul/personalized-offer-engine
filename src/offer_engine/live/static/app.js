@@ -23,6 +23,20 @@ const CHECK_NAMES = {
   featured: "Featured products", caption: "Caption present", reason: "Reason present", caption_check: "Caption Check",
   chooser: "Chooser answered",
 };
+// What a stop at Checks reads as on the Offer card: "Stopped by the Holdout".
+const STOPPED_BY = {
+  opt_out: "Opt-out", holdout: "Holdout", fatigue_pause: "Fatigue Pause", frequency_cap: "frequency cap",
+  cooldown: "cooldown after a Redemption", eligibility: "minimum days since signup",
+};
+// Rule keys as plain words; the key itself goes in a `title` for anyone debugging.
+const RULE_NAMES = {
+  opt_out: "Opt-out", holdout_pct: "Holdout", fatigue_dismissals: "Fatigue Pause", frequency_cap_count: "Frequency cap",
+  cooldown_days_after_redemption: "Cooldown after a Redemption", min_days_since_signup: "Days since signup",
+  weekly_budget: "Weekly budget", per_offer_cost_cap: "Per-offer cost cap", margin_floor_pct: "Margin floor",
+  max_pct_by_category: "Most % off for the category", max_pct_by_loyalty_tier: "Most % off for the loyalty tier",
+  max_flat_amount: "Most ₹ off", max_points_multiplier: "Most points multiplier", max_send_delay_hours: "Send delay",
+};
+const CHOOSER_NAMES = { agent: "agent", rules: "rules chooser", fallback: "Fallback" };
 const PARAM_NAMES = { pct: "Discount", cap: "Cap", amount: "Amount off", min_basket: "Minimum basket", multiplier: "Points multiplier" };
 // Response Classes, with the Glossary's own words for each.
 const RESPONSE_CLASSES = {
@@ -93,6 +107,35 @@ function when(iso) {
   return iso ? iso.replace("T", " ").slice(0, 16) : "—";
 }
 
+const dayFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" });
+
+// "2026-12-06 10:00" or "2026-12-06T10:00:00" as "6 Dec, 10:00", the charts' format.
+function shortWhen(iso) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return `${dayFormat.format(new Date(y, m - 1, d))}, ${iso.slice(11, 16)}`;
+}
+
+// The Offer in a few words, for a ticker row.
+function shortOffer(o) {
+  if (!o || !o.offer_type) return "No Offer";
+  const p = o.params || {};
+  switch (o.offer_type) {
+    case "pct_category":
+      return `${percent(p.pct)} off ${o.category || ""}`.trim();
+    case "flat_above_min":
+      return `${rupees(p.amount)} off over ${rupees(p.min_basket)}`;
+    case "points_multiplier":
+      return `${p.multiplier}× points`;
+    default:
+      return offerText(o);
+  }
+}
+
+function ruleName(key) {
+  return `<span title="${escapeHtml(key)}">${escapeHtml(RULE_NAMES[key] || words(key))}</span>`;
+}
+
 function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
@@ -118,6 +161,16 @@ function withTerms(text) {
   const safe = escapeHtml(text);
   if (!glossaryPattern) return safe;
   return safe.replace(glossaryPattern, (match, term) => `<span class="term" tabindex="0" data-term="${term}">${match}</span>`);
+}
+
+// Keeps a term's tooltip on its first use in `card` only, and never in a heading, so the underlines that remain stand
+// out (T43).
+function firstUseOnly(card) {
+  const seen = new Set();
+  for (const term of card.querySelectorAll("[data-term]")) {
+    if (term.closest("h1, h2, h3") || seen.has(term.dataset.term)) term.replaceWith(term.textContent);
+    else seen.add(term.dataset.term);
+  }
 }
 
 function setupTooltips() {
@@ -172,9 +225,19 @@ function setStatus(text, bad = false) {
 
 // --- Diagram -------------------------------------------------------------------------------------
 
-// Each node's look: idle (not reached), active (pulsing), done, stop (a stop or failure), skip (done, did nothing).
-const SYMBOLS = { idle: "", active: "…", done: "✓", stop: "✕", skip: "–" };
-const STATE_WORDS = { idle: "not reached", active: "in progress", done: "done", stop: "stopped or failed", skip: "skipped" };
+// Each node's look: idle (not reached), active (pulsing), done, stop (a stop or failure), skip (done, did nothing),
+// passed (never ran: the Decision went past it after a stop), none (the Offer stage of a No Offer).
+const SYMBOLS = { idle: "", active: "…", done: "✓", stop: "✕", skip: "–", passed: "", none: "–" };
+const STATE_WORDS = {
+  idle: "not reached", active: "in progress", done: "done", stop: "stopped or failed", skip: "skipped",
+  passed: "skipped after the stop", none: "no Offer sent",
+};
+
+// The Offer node reads "No Offer" once its stage says so.
+function nodeTitle(name) {
+  const stage = name === "offer" ? player.stageFor("offer") : null;
+  return stage && !stage.data?.offer_type ? "No Offer" : TITLES[name];
+}
 
 function finalState(stage) {
   const d = stage.data || {};
@@ -189,6 +252,8 @@ function finalState(stage) {
       return d.ok == null ? "skip" : "done";
     case "fallback":
       return d.ok === false ? "stop" : "done";
+    case "offer":
+      return d.offer_type ? "done" : "none";
     default:
       return "done";
   }
@@ -230,7 +295,9 @@ function drawDiagram() {
   names.forEach((name, i) => {
     if (i === 0) return;
     const a = pos[i - 1], b = pos[i];
-    const reached = ["done", "skip", "stop"].includes(player.states[names[i - 1]]) && player.states[name] !== "idle";
+    const from = player.states[names[i - 1]], to = player.states[name];
+    const passed = from === "passed" || to === "passed";
+    const reached = !passed && ["done", "skip", "stop"].includes(from) && to !== "idle";
     let d;
     if (a.y === b.y) d = `M${a.x + nodeW},${a.y + nodeH / 2} H${b.x}`;
     else if (cols === 1) d = `M${a.x + nodeW / 2},${a.y + nodeH} V${b.y}`;
@@ -238,7 +305,7 @@ function drawDiagram() {
       const midY = a.y + nodeH + gapY / 2;
       d = `M${a.x + nodeW / 2},${a.y + nodeH} V${midY} H${b.x + nodeW / 2} V${b.y}`;
     }
-    el("path", { d, class: `edge ${reached ? "done" : ""}`, "marker-end": `url(#arrow-${reached ? "done" : "idle"})` }, svg);
+    el("path", { d, class: `edge ${reached ? "done" : ""} ${passed ? "passed" : ""}`, "marker-end": `url(#arrow-${reached ? "done" : "idle"})` }, svg);
   });
   names.forEach((name, i) => {
     const state = player.states[name];
@@ -248,13 +315,13 @@ function drawDiagram() {
       transform: `translate(${pos[i].x},${pos[i].y})`,
       tabindex: stage ? "0" : "-1",
       role: stage ? "button" : "img",
-      "aria-label": `${TITLES[name]}: ${STATE_WORDS[state]}`,
+      "aria-label": `${nodeTitle(name)}: ${STATE_WORDS[state]}`,
     }, svg);
     el("rect", { class: "box", width: nodeW, height: nodeH, rx: 8 }, g);
     if (cols === 1) {
-      el("text", { x: 16, y: nodeH / 2, "dominant-baseline": "central" }, g).textContent = TITLES[name];
+      el("text", { x: 16, y: nodeH / 2, "dominant-baseline": "central" }, g).textContent = nodeTitle(name);
     } else {
-      const parts = TITLES[name].split(" ");
+      const parts = nodeTitle(name).split(" ");
       parts.forEach((part, j) => {
         const y = nodeH / 2 + (j - (parts.length - 1) / 2) * 18;
         el("text", { x: nodeW / 2, y, "text-anchor": "middle", "dominant-baseline": "central" }, g).textContent = part;
@@ -358,6 +425,10 @@ const player = {
     this.settlePrevious();
     if (this.thinking && stage.name !== "agent") this.states.agent = "idle";
     this.thinking = false;
+    // A stage the Decision jumped over (after a stop at Checks) is skipped, not still to come.
+    for (const name of STAGES.slice(0, STAGES.indexOf(stage.name))) {
+      if (name !== "fallback" && this.states[name] === "idle") this.states[name] = "passed";
+    }
     this.shown.push(stage);
     this.states[stage.name] = "active";
     this.lastShownAt = performance.now();
@@ -404,11 +475,28 @@ const player = {
 
 // A check stops a Decision; any other stage that goes red failed.
 function stateChip(state, name) {
-  const cls = { done: "ok", stop: "bad", skip: "idle", idle: "idle", active: "active" }[state];
+  const cls = { done: "ok", stop: "bad", skip: "idle", idle: "idle", active: "active", passed: "idle", none: "idle" }[state];
   const stop = name === "checks" ? "✕ Stopped" : "✕ Failed";
-  const text = { done: "✓ Done", stop, skip: "– Skipped", idle: "Not reached", active: "… In progress" }[state];
+  const text = {
+    done: "✓ Done", stop, skip: "– Skipped", idle: "Not reached", active: "… In progress",
+    passed: "– Skipped after the stop", none: "– Nothing sent",
+  }[state];
   return `<span class="state ${cls}">${text}</span>`;
 }
+
+// Why a Decision ended in No Offer, in plain words; the stage's own reason, with any rule key, is the `title`.
+function noOfferReason(d) {
+  const stop = player.stageFor("checks")?.data.stopped_by;
+  if (stop) return `Stopped by the ${STOPPED_BY[stop] || words(stop)}`;
+  const text = (d.reason || "").replace(/^No Offer:\s*/, "").replace(/\s*\([a-z_]+\)$/, "");
+  return text ? text[0].toUpperCase() + text.slice(1) : "Nothing was worth sending";
+}
+
+// A stage's summary where the trace's own would show rule keys or repeat the details below it.
+const SUMMARIES = {
+  checks: (d) => (d.stopped_by ? `Stopped by the ${STOPPED_BY[d.stopped_by] || words(d.stopped_by)}` : "Every check passed"),
+  offer: (d) => (d.offer_type ? "" : noOfferReason(d)),
+};
 
 function renderCard(stage, { animateChecks = false } = {}) {
   const card = $("card");
@@ -422,22 +510,24 @@ function renderCard(stage, { animateChecks = false } = {}) {
     card.innerHTML = `<p class="eyebrow">${escapeHtml(player.title)}</p><h2>Setting up the scenario<span class="dots"></span></h2>`;
     return;
   }
-  const index = player.shown.indexOf(stage) + 1;
   const state = player.states[stage.name];
+  const data = stage.data || {};
+  const summary = SUMMARIES[stage.name] ? SUMMARIES[stage.name](data) : stage.summary;
   card.innerHTML = `
-    <p class="eyebrow">${escapeHtml(player.title)} · stage ${index}</p>
-    <h2>${withTerms(stage.title)}</h2>
+    <p class="eyebrow">${escapeHtml(player.title)} · ${escapeHtml(TITLES[stage.name])} stage</p>
+    <h2>${escapeHtml(nodeTitle(stage.name))}</h2>
     ${stateChip(state, stage.name)}
-    <p class="summary">${withTerms(stage.summary)}</p>
-    ${(DETAILS[stage.name] || (() => ""))(stage.data || {})}
+    ${summary ? `<p class="summary" title="${escapeHtml(stage.summary)}">${withTerms(summary)}</p>` : ""}
+    ${(DETAILS[stage.name] || (() => ""))(data)}
     ${stage.name === "offer" ? scenarioLines() : ""}`;
+  firstUseOnly(card);
   restartFade(card);
   if (animateChecks) tickChecks(card);
 }
 
 function renderThinking() {
   const card = $("card");
-  card.innerHTML = `<p class="eyebrow">${escapeHtml(player.title)}</p><h2>${withTerms("Agent")}</h2>
+  card.innerHTML = `<p class="eyebrow">${escapeHtml(player.title)} · Agent stage</p><h2>Agent</h2>
     <span class="state active">… In progress</span>
     <p class="thinking">Claude is thinking<span class="dots"></span></p>`;
   restartFade(card);
@@ -472,9 +562,9 @@ function checklist(items, { ticks = false } = {}) {
     const sym = { ok: "✓", bad: "✕", idle: "–" }[cls];
     const label = CHECK_NAMES[it.name] || words(it.name);
     const detail = [it.detail, ...(it.failures || [])].filter(Boolean).map(escapeHtml).join("<br>");
-    const rule = it.rule ? ` <code>${escapeHtml(it.rule)}</code>` : "";
-    return `<li class="${cls}"><span class="sym" aria-hidden="true">${sym}</span>
-      <div><span class="what">${withTerms(label)}</span> <span class="detail">· ${escapeHtml(it.status)}${rule}</span>
+    const rule = it.rule ? ` title="${escapeHtml(it.rule)}"` : "";
+    return `<li class="${cls}"${rule}><span class="sym" aria-hidden="true">${sym}</span>
+      <div><span class="what">${withTerms(label)}</span> <span class="detail">· ${escapeHtml(it.status)}</span>
       ${detail ? `<div class="detail">${detail}</div>` : ""}</div></li>`;
   }).join("");
   return `<ul class="checklist ${ticks ? "ticks" : ""}">${rows}</ul>`;
@@ -578,9 +668,7 @@ const DETAILS = {
     ${d.checks && d.checks.length ? `<section><h3>Its ${withTerms("Validation")}</h3>${checklist(d.checks, { ticks: true })}</section>` : ""}`,
 
   offer: (d) => {
-    if (!d.offer_type) {
-      return `<p class="big">${withTerms("No Offer")}</p>${facts([["Chosen by", escapeHtml(d.chooser)]])}`;
-    }
+    if (!d.offer_type) return facts([["Chosen by", escapeHtml(CHOOSER_NAMES[d.chooser] || d.chooser)]]);
     return `
       <p class="big">${escapeHtml(offerText(d))}</p>
       ${d.caption ? `<blockquote class="caption">${escapeHtml(d.caption)}</blockquote>` : ""}
@@ -589,8 +677,8 @@ const DETAILS = {
         ["Send at", escapeHtml(when(d.send_at))],
         ["Expires", escapeHtml(when(d.expires_at))],
         ["Worst-case cost", escapeHtml(rupees(d.worst_case_cost))],
-        ["Chosen by", escapeHtml(d.chooser)],
-        ["Binding Rule", d.binding_rule && `<code>${escapeHtml(d.binding_rule)}</code>`],
+        ["Chosen by", escapeHtml(CHOOSER_NAMES[d.chooser] || d.chooser)],
+        ["Binding Rule", d.binding_rule && ruleName(d.binding_rule)],
         ["Reason", escapeHtml(d.reason)],
       ])}`;
   },
@@ -639,6 +727,7 @@ function renderPanels() {
       <h2 id="truth-title">What the simulator knows</h2>
       <p class="summary">Loading the ${withTerms("Ground Truth")}<span class="dots"></span></p>
     </section>`;
+  panels.querySelectorAll(".panel").forEach(firstUseOnly);
   if (customerId && decisionId != null) loadTruth(player.generation, customerId, decisionId);
 }
 
@@ -704,6 +793,7 @@ async function loadTruth(generation, customerId, decisionId) {
   const panel = $("truth");
   if (generation !== player.generation || !panel) return;
   panel.innerHTML = truthPanel(truth);
+  firstUseOnly(panel);
 }
 
 function truthPanel(t) {
@@ -752,17 +842,24 @@ async function refreshCounters() {
   // Today's number, then the total since the clock start, so the strip never drops to 0 at midnight (QnA Q55).
   const s = c.since_start;
   const start = new Date(s.since.replace(" ", "T")).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-  const tile = (label, value, sub = "", since = "") =>
-    `<div><dt>${label}</dt><dd>${value}${sub ? ` <span class="sub">${sub}</span>` : ""}</dd>` +
-    (since ? `<dd class="since">${since} since ${escapeHtml(start)}</dd>` : "") + "</div>";
+  const tile = (label, value, since = "", more = "") =>
+    `<div><dt>${label}</dt><dd class="value">${value}</dd>` +
+    (since ? `<dd class="since">${since} since ${escapeHtml(start)}</dd>` : "") + more + "</div>";
+  // The Trigger breakdown stays folded, keeping its open state across refreshes.
+  const open = $("counters").querySelector("details")?.open ? " open" : "";
+  const breakdown = byTrigger.length
+    ? `<dd><details${open}><summary>by ${withTerms("Trigger")}</summary><ul class="breakdown">${byTrigger
+        .map(([t, k]) => `<li><span>${escapeHtml(words(t))}</span><span>${inr0.format(k)}</span></li>`).join("")}</ul></details></dd>`
+    : "";
   $("counters").innerHTML = [
-    tile(withTerms("Simulation Clock"), escapeHtml(c.time)),
-    tile(`${withTerms("Decisions")} today`, inr0.format(total(c.decisions)), escapeHtml(byTrigger.map(([t, k]) => `${words(t)} ${k}`).join(" · ")), inr0.format(total(s.decisions))),
-    tile("Offers sent today", inr0.format(c.offers_sent), "", inr0.format(s.offers_sent)),
-    tile(`${withTerms("Claims")} today`, inr0.format(c.claims), "", inr0.format(s.claims)),
-    tile(`${withTerms("Redemptions")} today`, inr0.format(c.redemptions), "", inr0.format(s.redemptions)),
-    tile("Offer spend today", escapeHtml(rupees(c.spend)), "", escapeHtml(rupees(s.spend))),
+    tile(withTerms("Simulation Clock"), escapeHtml(shortWhen(c.time))),
+    tile(`${withTerms("Decisions")} today`, inr0.format(total(c.decisions)), inr0.format(total(s.decisions)), breakdown),
+    tile("Offers sent today", inr0.format(c.offers_sent), inr0.format(s.offers_sent)),
+    tile(`${withTerms("Claims")} today`, inr0.format(c.claims), inr0.format(s.claims)),
+    tile(`${withTerms("Redemptions")} today`, inr0.format(c.redemptions), inr0.format(s.redemptions)),
+    tile("Offer spend today", escapeHtml(rupees(c.spend)), escapeHtml(rupees(s.spend))),
   ].join("");
+  firstUseOnly($("counters"));
 }
 
 async function loadAgentMode(promise = getJson("/agent-mode")) {
@@ -793,7 +890,7 @@ function setupControls() {
   });
   const box = $("reset");
   const ask = () => {
-    box.innerHTML = `<button type="button" class="ghost" id="reset-ask">Reset</button>`;
+    box.innerHTML = `<button type="button" class="danger-outline" id="reset-ask">Reset</button>`;
   };
   box.addEventListener("click", async (e) => {
     const id = e.target.id;
@@ -868,6 +965,7 @@ async function runScenario(scenario, button) {
   markPlaying(button, null);
   setStatus(`Running: ${scenario.title}`);
   const generation = player.start(scenario.title);
+  showDiagram();
   stream = new EventSource(`/runs/${started.run_id}/events`);
   stream.addEventListener("stage", (e) => player.add(generation, JSON.parse(e.data)));
   stream.addEventListener("result", (e) => {
@@ -887,6 +985,11 @@ async function runScenario(scenario, button) {
 function closeStream() {
   if (stream) stream.close();
   stream = null;
+}
+
+// A playback started from the rail happens at the top of the main column, often out of sight: bring it into view.
+function showDiagram() {
+  $("diagram-wrap").scrollIntoView({ block: "start", behavior: reducedMotion.matches ? "auto" : "smooth" });
 }
 
 function onPlaybackDone() {
@@ -924,10 +1027,18 @@ function renderTicker() {
   if (!rows.length) {
     list.innerHTML = `<li class="empty">${ticker.failed ? "Couldn't load Decisions." : "No Decisions yet."}</li>`;
   } else {
-    list.innerHTML = rows.map((d) => `<li><button type="button" class="row ${d.id === ticker.playing ? "playing" : ""}"
-        data-id="${d.id}" data-offer="${d.offer_id ?? ""}" ${d.traced ? "" : "disabled"} title="${d.traced ? "Play this Decision" : "This Decision has no trace"}">
-        <span class="when">#${d.id} · ${escapeHtml(d.time)} · ${escapeHtml(d.customer)} · ${escapeHtml(words(d.trigger))}</span>
-        <span class="what">${escapeHtml(offerText(parseTerms(d.offer)))}</span></button></li>`).join("");
+    // Line 1: the outcome, then who; line 2: the Trigger and when. The full Offer and the IDs are in the title.
+    list.innerHTML = rows.map((d) => {
+      const offer = parseTerms(d.offer);
+      const who = d.customer_name || d.customer;
+      const title = `Decision #${d.id}: ${offerText(offer)} for ${d.customer_name ? `${who} (${d.customer})` : who}. ` +
+        (d.traced ? "Play this Decision" : "This Decision has no trace");
+      return `<li><button type="button" class="row ${d.id === ticker.playing ? "playing" : ""}"
+        data-id="${d.id}" data-offer="${d.offer_id ?? ""}" ${d.traced ? "" : "disabled"} title="${escapeHtml(title)}">
+        <span class="what"><strong class="${offer ? "ok" : ""}">${offer ? "✓" : "–"} ${escapeHtml(shortOffer(offer))}</strong>
+          <span class="who">${escapeHtml(who)}</span></span>
+        <span class="when">${escapeHtml(words(d.trigger))} · ${escapeHtml(shortWhen(d.time))}</span></button></li>`;
+    }).join("");
   }
   const more = $("ticker-more");
   more.hidden = ticker.rows.length <= TICKER_SHORT;
@@ -961,6 +1072,7 @@ async function playDecision(id, offerId = null) {
   markPlaying(null, id);
   setStatus(`Playing Decision #${id}`);
   const generation = player.start(`Decision #${id}`, { decisionId: id, offerId });
+  showDiagram();
   for (const stage of stages) player.add(generation, stage);
   player.finish(generation, null);
 }
@@ -1016,6 +1128,7 @@ async function main() {
   // The intro card's terms get tooltips too.
   const intro = $("card").querySelector("p:last-child");
   intro.innerHTML = withTerms(intro.textContent.replace(/\s+/g, " "));
+  firstUseOnly($("card"));
   await loadScenarios();
   loadAgentMode();
   refreshTicker();

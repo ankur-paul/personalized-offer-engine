@@ -27,7 +27,7 @@ from fastapi import Body, Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from offer_engine import clock, config
+from offer_engine import clock, config, personas
 from offer_engine.commands._format import fetch_decisions, offer_terms
 from offer_engine.config import load_settings
 from offer_engine.db import connect
@@ -54,6 +54,8 @@ RUNS_KEPT = 20
 # Seconds between SSE comments while a stage takes long (the agent's call), so proxies keep the stream open.
 KEEPALIVE = 15.0
 TIME_FORMAT = "%Y-%m-%d %H:%M"
+# A Tester's copy is `<id>-t<telegram user id>`; its name is the source Customer's.
+_TESTER_SUFFIX = re.compile(r"-t\d+$")
 
 # The modes the page's Agent switch offers; `record` stays a `.env` setting.
 PageAgentMode = Literal["replay", "live"]
@@ -151,9 +153,11 @@ def create_app(
     run_scenario: RunScenario = runner.run,
     glossary_path: Path = GLOSSARY_PATH,
     snapshot_path: Path = snapshot.DEFAULT_PATH,
+    personas_dir: Path = personas.PERSONAS_DIR,
 ) -> FastAPI:
     """The app on the database at `db_path` (default `DB_PATH`). With a `password`, every route asks for it by
-    HTTP basic auth. `run_scenario` is `runner.run` but for tests. Reset restores the snapshot at `snapshot_path`."""
+    HTTP basic auth. `run_scenario` is `runner.run` but for tests. Reset restores the snapshot at `snapshot_path`.
+    The ticker names Customers from the Persona Cards in `personas_dir`."""
     db_path = load_settings().db_path if db_path is None else db_path
     glossary = read_glossary(glossary_path)
     runs: OrderedDict[str, Run] = OrderedDict()
@@ -226,8 +230,9 @@ def create_app(
 
     @app.get("/decisions/latest")
     def latest() -> list[dict[str, Any]]:
+        names = {card.customer_id: card.name for card in personas.load_all(personas_dir)}
         with closing(connect(db_path)) as conn:
-            return latest_decisions(conn)
+            return latest_decisions(conn, names)
 
     @app.get("/decisions/{decision_id}/trace")
     def trace(decision_id: int) -> list[dict[str, Any]]:
@@ -392,8 +397,12 @@ def _tally(conn: sqlite3.Connection, start: str, end: str) -> dict[str, Any]:
     }
 
 
-def latest_decisions(conn: sqlite3.Connection, limit: int = LATEST_LIMIT) -> list[dict[str, Any]]:
-    """The newest Decisions with their Offer terms, and whether each has a trace to play."""
+def latest_decisions(
+    conn: sqlite3.Connection, names: dict[str, str] | None = None, limit: int = LATEST_LIMIT
+) -> list[dict[str, Any]]:
+    """The newest Decisions with their Offer terms, the Customer's name from `names` (None without a Persona Card),
+    and whether each has a trace to play."""
+    names = names or {}
     rows = fetch_decisions(conn, last=limit)
     traced = {
         r[0]
@@ -407,6 +416,7 @@ def latest_decisions(conn: sqlite3.Connection, limit: int = LATEST_LIMIT) -> lis
             "id": r["id"],
             "time": datetime.fromisoformat(r["at"]).strftime(TIME_FORMAT),
             "customer": r["customer_id"],
+            "customer_name": names.get(_TESTER_SUFFIX.sub("", r["customer_id"])),
             "trigger": r["trigger"],
             "offer": offer_terms(r),
             "offer_id": r["offer_id"],
