@@ -39,6 +39,7 @@ A ticket that builds a page or screen needs a Look and feel section (layout, col
 - Changes to the Rules engine or Validation are written test-first, including the property test that random rule-breaking proposals never pass.
 - Before every commit, run the full test suite once. Commit only when it is green; if it goes red, fix the cause first.
 - `uv run pytest` runs in parallel on every core; add `-n 0` for a quick run of one file. Run `-m slow` timing tests alone, since a run beside them skews their timing.
+- Don't name a test folder `live` or `slow`. `conftest.py` skips tests by keyword, and pytest counts folder names as keywords, so every test in it is skipped without notice.
 - `KEY= uv run …` does not unset a `.env` key: an empty variable falls back to the `.env` value. To run or check something without a key, empty it in `.env`.
 
 ## Friction log
