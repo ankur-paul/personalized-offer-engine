@@ -114,7 +114,7 @@ code { font-size: 14px; }
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
-  grid-template-areas: "scenarios main" "ticker main";
+  grid-template-areas: "ticker main" "scenarios main";
   gap: 24px;
   padding: 24px;
   max-width: 1440px;
@@ -157,6 +157,8 @@ code { font-size: 14px; }
   padding: 16px;
   display: flex;
   justify-content: center;
+  /* Room above the badges when a playback scrolls the diagram to the top. */
+  scroll-margin-top: 16px;
 }
 #diagram { display: block; max-width: 100%; height: auto; overflow: visible; }
 
@@ -182,6 +184,14 @@ code { font-size: 14px; }
 .node.stop .badge text { fill: var(--surface); }
 
 .node.skip rect.box { stroke-dasharray: 4 4; }
+
+/* A No Offer ends on a grey node, never a green one (T43). */
+.node.none rect.box { stroke: var(--idle); stroke-width: 2; fill: var(--surface); }
+.node.none text { fill: var(--text); }
+
+/* Stages the Decision went past after a stop: dashed, unlike the solid grey of not reached yet. */
+.node.passed rect.box { stroke-dasharray: 4 4; }
+.edge.passed { stroke-dasharray: 4 4; stroke-width: 1; }
 
 .node.viewing rect.box { stroke-width: 3; }
 .node:focus { outline: none; }
@@ -326,37 +336,48 @@ details pre {
   background: var(--surface);
   padding: 8px;
   font-size: 14px;
+  line-height: 20px;
   cursor: pointer;
   display: grid;
 }
 .ticker button.row:hover:not(:disabled) { border-color: var(--accent); }
 .ticker button.row:disabled { cursor: default; color: var(--muted); }
 .ticker button.row.playing { border-color: var(--accent); background: var(--accent-soft); }
+.ticker .what, .ticker .when { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ticker .what strong { font-weight: 600; }
+.ticker .what strong.ok { color: var(--ok); }
 .ticker .when { color: var(--muted); }
-.ticker .what { font-weight: 600; overflow-wrap: anywhere; }
 .ticker .empty { font-size: 14px; color: var(--muted); }
 
 /* --- Counters strip and controls (T40) ----------------------------------------------------------- */
 
 .bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 16px;
 }
-.counters { display: flex; flex-wrap: wrap; gap: 8px 24px; min-width: 0; }
-.counters > div { display: grid; gap: 0; }
+.counters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; min-width: 0; align-items: start; }
+.counters > div { display: grid; gap: 0; min-width: 0; }
 .counters dt { font-size: 14px; color: var(--muted); }
-.counters dd { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.counters .sub { font-size: 14px; font-weight: 400; color: var(--muted); }
-.counters .since { font-size: 14px; font-weight: 400; color: var(--muted); }
+.counters dd { font-size: 14px; color: var(--muted); }
+.counters dd.value { font-size: 20px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.counters .sub { font-size: 14px; color: var(--muted); }
+.counters summary { cursor: pointer; color: var(--muted); width: fit-content; }
+.breakdown { list-style: none; padding: 0; margin-top: 8px; display: grid; gap: 0; max-width: 240px; }
+.breakdown li { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
 
-.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+/* The Agent switch and Reset: their own row under the counters, apart from the numbers (T43). */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
 .switch { display: inline-flex; align-items: center; gap: 0; }
 .switch-label { font-size: 14px; color: var(--muted); margin-right: 8px; }
 .switch button {
@@ -383,6 +404,17 @@ details pre {
   font-weight: 600;
   cursor: pointer;
 }
+.danger-outline {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--bad);
+  cursor: pointer;
+}
+.danger-outline:hover { background: var(--bad-soft); }
 
 /* --- Outcome and truth panels (T40) ------------------------------------------------------------- */
 
@@ -454,6 +486,7 @@ details pre {
   .card { padding: 16px; }
   .card h2 { font-size: 20px; }
   .bar { padding: 8px; }
+  .counters { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .outcome-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .offer-card { max-width: 400px; }
 }

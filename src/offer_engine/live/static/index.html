@@ -16,6 +16,12 @@
   </header>
 
   <div class="layout">
+    <aside class="ticker" aria-labelledby="ticker-title">
+      <h2 id="ticker-title">Latest Decisions</h2>
+      <ol id="ticker"></ol>
+      <button id="ticker-more" class="ghost" type="button" aria-controls="ticker" aria-expanded="false">Show 20</button>
+    </aside>
+
     <nav class="scenarios" id="scenarios" aria-label="Scenarios"></nav>
 
     <main class="main">
@@ -28,7 +34,7 @@
             <button type="button" data-mode="live" aria-pressed="false">Live</button>
           </div>
           <div class="reset" id="reset">
-            <button type="button" class="ghost" id="reset-ask">Reset</button>
+            <button type="button" class="danger-outline" id="reset-ask">Reset</button>
           </div>
         </div>
       </section>
@@ -45,11 +51,6 @@
       <section id="world"></section>
     </main>
 
-    <aside class="ticker" aria-labelledby="ticker-title">
-      <h2 id="ticker-title">Latest Decisions</h2>
-      <ol id="ticker"></ol>
-      <button id="ticker-more" class="ghost" type="button" aria-controls="ticker" aria-expanded="false">Show 20</button>
-    </aside>
   </div>
 
   <div id="tip" class="tip" role="tooltip" hidden></div>

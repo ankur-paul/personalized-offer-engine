@@ -43,6 +43,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+  /* Each card is as tall as its content, so a short card leaves no blank band beside a tall one (T43). */
+  align-items: start;
 }
 @container (min-width: 760px) {
   .world .world-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

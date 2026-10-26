@@ -1,5 +1,5 @@
 # T43 — Live view design pass: playback in view, clear endings, plain labels
-**Status:** IN PROGRESS
+**Status:** DONE
 **Prereqs:** — · **Branch:** t43-live-view-design-pass
 
 ## Goal
@@ -57,6 +57,23 @@ What works and must stay: the grouped scenario buttons with their `proves` subti
 colour; the tinted "Hidden from the engine: simulator only" panels; the "Show table" view under every chart; text
 contrast passes 4.5:1 throughout in light mode (checked); both themes.
 
+Done as built:
+- `customer_name` comes from the Persona Cards (`personas/`); a Tester's copy takes its source's name. Only the showcase
+  Customers have cards, so most rows show the Customer ID.
+- The page rewrites two summaries from the stage's data: Checks ("Stopped by the Holdout", "Every check passed") and a
+  No Offer ("Stopped by the …", else the reason without its `No Offer:` prefix and rule key). The trace's own summary is
+  the paragraph's `title`. An Offer's card drops the trace summary, which repeated the facts below it, and names the
+  Binding Rule in words with the key as its `title`.
+- A No Offer's card has "No Offer" as its heading and a "– Nothing sent" chip; the 20 px "No Offer" line is gone.
+- Skipped stages are a new `passed` node state, separate from `skip` (a stage that ran and did nothing, such as Agent for
+  a Customer without a chat), which keeps its "–" badge.
+- The world charts' headings lost their tooltips under the heading rule; each term keeps one in the card's text.
+- Item 12: after these changes no element renders at 18 px. A scan of every stage card and panel at 1280 px found only
+  14, 16, 20 and 28 px, but which element was 18 px before wasn't identified.
+- The Eligible Set table and its Dropped list still show rule keys in `code`. They weren't in the critique's list.
+- Checked on a copy of the live database served on port 8503 after the page's Reset, at 1280 px in both themes, not with
+  `demo reset` on the live database.
+
 ### Look and feel
 Follows T39's Look and feel (and T41's chart palette) with these changes:
 - **Rail order:** Latest Decisions (5 rows, "Show 20"), then the scenario groups.
@@ -88,12 +105,12 @@ Follows T39's Look and feel (and T41's chart palette) with these changes:
 - Repeat in dark theme.
 
 ## Done when
-- [ ] Ticker and scenario playback scroll the diagram into view
-- [ ] Ticker moved to the top of the rail, with rows led by the outcome and name; QnA entry records the change
-- [ ] No Offer ends on a grey "No Offer" node; skipped stages are dashed
-- [ ] Rule keys, "stage N" and "Chosen by rules" replaced with plain words
-- [ ] Glossary underline on first use per card only
-- [ ] Counters on a grid; controls on their own row; top chart cards have no blank band
-- [ ] Look and feel holds at 1280 px in both themes
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T43: live view design pass`
+- [x] Ticker and scenario playback scroll the diagram into view
+- [x] Ticker moved to the top of the rail, with rows led by the outcome and name; QnA entry records the change
+- [x] No Offer ends on a grey "No Offer" node; skipped stages are dashed
+- [x] Rule keys, "stage N" and "Chosen by rules" replaced with plain words
+- [x] Glossary underline on first use per card only
+- [x] Counters on a grid; controls on their own row; top chart cards have no blank band
+- [x] Look and feel holds at 1280 px in both themes
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T43: live view design pass`
