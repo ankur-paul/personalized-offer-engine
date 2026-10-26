@@ -18,6 +18,7 @@ from offer_engine.domain import (
     Product,
     Proposal,
     RuleSet,
+    TriggerKind,
 )
 from offer_engine.rules import in_holdout
 from offer_engine.validation import failed_check, no_caption_check, validate
@@ -93,9 +94,17 @@ VALID = Proposal(
 )
 
 
-def check(proposal=VALID, state=None, rules=None, budget=NO_SPEND, now=NOW, caption_checker=no_caption_check):
+def check(
+    proposal=VALID,
+    state=None,
+    rules=None,
+    budget=NO_SPEND,
+    now=NOW,
+    caption_checker=no_caption_check,
+    trigger=TriggerKind.CART_ABANDONED,
+):
     return validate(
-        proposal, state or make_state(), rules or RuleSet(), budget, now, CATALOG, caption_checker
+        proposal, state or make_state(), rules or RuleSet(), budget, now, CATALOG, caption_checker, trigger
     )
 
 
@@ -526,3 +535,34 @@ def test_every_failure_belongs_to_a_check_that_ran():
         "caption_check",
     }
     assert all(failed_check(f) in result.checks for f in result.failures)
+
+
+NUDGE = replace(VALID, offer_type=OfferType.NUDGE, category=None, params={})
+
+
+@pytest.mark.parametrize("trigger", [TriggerKind.CART_ABANDONED, TriggerKind.POINTS_EXPIRING])
+def test_a_nudge_on_a_reminder_trigger_passes(trigger):
+    assert check(NUDGE, trigger=trigger).ok
+
+
+@pytest.mark.parametrize(
+    "trigger",
+    [
+        TriggerKind.DAILY_SWEEP,
+        TriggerKind.LONG_GAP,
+        TriggerKind.FIRST_ORDER_DELIVERED,
+        TriggerKind.ON_REQUEST,
+        None,
+    ],
+)
+def test_a_nudge_with_nothing_to_remind_about_fails(trigger):
+    """QnA Q56: the agent may not send a Nudge on the Daily Sweep, a long gap, a first delivery or /offers."""
+    result = check(NUDGE, trigger=trigger)
+    assert result.ok is False
+    assert (
+        failure(result, "offer_type_not_eligible") == "offer_type_not_eligible: nudge (nudge_needs_reminder)"
+    )
+
+
+def test_a_paid_offer_on_the_daily_sweep_still_passes():
+    assert check(trigger=TriggerKind.DAILY_SWEEP).ok

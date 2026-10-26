@@ -34,8 +34,9 @@ from offer_engine.domain import (
     Product,
     Proposal,
     RuleSet,
+    TriggerKind,
 )
-from offer_engine.rules import RECENT_CATEGORY_DAYS, eligible_set, in_holdout, offer_cost
+from offer_engine.rules import NUDGE_TRIGGERS, RECENT_CATEGORY_DAYS, eligible_set, in_holdout, offer_cost
 from offer_engine.validation import failed_check, validate
 
 EXAMPLES = settings(max_examples=500, deadline=None)
@@ -62,9 +63,12 @@ class Case:
     now: datetime
     es: EligibleSet
     option: EligibleOption
+    trigger: TriggerKind
 
     def run(self):
-        return validate(self.proposal, self.state, self.rules, self.budget, self.now, CATALOG)
+        return validate(
+            self.proposal, self.state, self.rules, self.budget, self.now, CATALOG, trigger=self.trigger
+        )
 
     def seen(self) -> set[str]:
         since = self.now - timedelta(days=RECENT_CATEGORY_DAYS)
@@ -143,8 +147,11 @@ def valid_cases(draw) -> Case:
     budget = BudgetState(
         DAY - timedelta(days=3), spent=draw(st.floats(0, 40_000)), reserved=draw(st.floats(0, 5_000))
     )
-    es = eligible_set(state, rules, budget, now, CATALOG)
+    trigger = draw(st.sampled_from(list(TriggerKind)))
+    es = eligible_set(state, rules, budget, now, CATALOG, trigger)
     assert es.short_circuit is None
+    # With no Nudge on this Trigger, every paid option can be dropped; only No Offer is left then.
+    assume(es.options)
     ranged = [o for o in es.options if o.ranges]
     option = draw(st.sampled_from(es.options) | st.sampled_from(ranged or es.options))
 
@@ -160,7 +167,7 @@ def valid_cases(draw) -> Case:
     else:
         send_at = None
 
-    case = Case(Proposal(offer_type=None), state, rules, budget, now, es, option)
+    case = Case(Proposal(offer_type=None), state, rules, budget, now, es, option, trigger)
     candidates = sorted(
         p for p in case.seen() if option.category is None or CATALOG.products[p].category == option.category
     )
@@ -253,6 +260,13 @@ def dropped_offer_type(case, data):
     key = data.draw(st.sampled_from(dropped))
     broken = _proposal(case, offer_type=OfferType(key), category=None)
     return broken, Expect("offer_type_not_eligible", case.es.dropped[key])
+
+
+def nudge_off_reminder(case, data):
+    """A Nudge on a Trigger with nothing to remind about (QnA Q56)."""
+    trigger = data.draw(st.sampled_from(sorted(set(TriggerKind) - NUDGE_TRIGGERS)))
+    broken = replace(_proposal(case, offer_type=OfferType.NUDGE, category=None, params={}), trigger=trigger)
+    return broken, Expect("offer_type_not_eligible", "nudge_needs_reminder")
 
 
 def category_not_an_option(case, data):
@@ -386,6 +400,7 @@ ALONE: list[Mutation] = [
     cooldown,
     too_new,
     dropped_offer_type,
+    nudge_off_reminder,
     category_not_an_option,
     over_budget,
     over_cost_cap,

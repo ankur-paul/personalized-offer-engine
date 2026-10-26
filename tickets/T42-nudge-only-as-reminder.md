@@ -1,5 +1,5 @@
 # T42 — A Nudge only when there is something to remind about
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T40 · **Branch:** t42-nudge-reminder
 
 ## Goal
@@ -24,6 +24,16 @@ that would follow.
   and a key, which records only the missing answers. `lost-cause-nudge` fires on an abandoned cart and keeps its
   Nudge. Check every scenario's expected Decision still holds.
 - Update FEATURES.md's Known limits on the sweep's Nudges with the new first-day numbers.
+- Done as built: `eligible_set` and `validate` take the Trigger as an optional last argument. Without one there is
+  nothing to remind about, so no Nudge, which can only remove an Offer, never add one. The Nudge is listed in
+  `dropped` as `nudge_needs_reminder`, so Validation's existing `offer_type_not_eligible` check rejects it. With no
+  Nudge, an Eligible Set can now be empty: both choosers return "No Offer: the Rules leave no option" without
+  calling Claude, and the Decision's Binding Rule is the Rule that dropped the most options (`empty_set_binding`).
+  Measuring the change showed why paid Offers stay low after day 1: the first sweep reserves about ₹49,000 of the
+  ₹50,000 weekly budget at worst-case cost. Those Decisions now show `weekly_budget`, and T41's day chart has a sixth
+  group for them (palette slot 6, validated in both modes). `offer-engine eligible` takes `--trigger` (default
+  `daily_sweep`). The agent's system prompt is unchanged, so `lost-cause-nudge`'s recording still replays; the
+  three sweep scenarios with the agent got new recordings.
 
 ## Tests
 - `tests/test_rules.py`: a Nudge is in the Eligible Set for the two reminder Triggers only.
@@ -35,7 +45,7 @@ that would follow.
 with "nothing worth sending", and the frequency cap no longer stops most Decisions from day 3.
 
 ## Done when
-- [ ] Nudges only on the two reminder Triggers, in the Rules and in Validation
-- [ ] Demo scenarios re-recorded and `demo check` passes
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T42: Nudge only as a reminder`
+- [x] Nudges only on the two reminder Triggers, in the Rules and in Validation
+- [x] Demo scenarios re-recorded and `demo check` passes
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T42: Nudge only as a reminder`

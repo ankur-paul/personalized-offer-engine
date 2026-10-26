@@ -20,6 +20,7 @@ from offer_engine.domain import (
     OfferType,
     Proposal,
     RuleSet,
+    TriggerKind,
     ValidationResult,
 )
 from offer_engine.rules import RECENT_CATEGORY_DAYS, eligible_set, offer_cost
@@ -63,13 +64,15 @@ def validate(
     now: datetime,
     catalog: Catalog,
     caption_checker: CaptionChecker = no_caption_check,
+    trigger: TriggerKind | None = None,
 ) -> ValidationResult:
+    """`trigger` is the Decision's Trigger: the Eligible Set it re-computes allows a Nudge only on a reminder."""
     if proposal.offer_type is None:
         return ValidationResult(ok=True)
 
     failures: list[str] = []
     checks = ["short_circuit"]
-    es = eligible_set(state, rules, budget, now, catalog)
+    es = eligible_set(state, rules, budget, now, catalog, trigger)
     if es.short_circuit is not None:
         failures.append(f"short_circuit: {es.short_circuit} ({es.binding_rule})")
     else:

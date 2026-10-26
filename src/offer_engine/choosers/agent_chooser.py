@@ -149,6 +149,8 @@ class AgentChooser:
         self.last_output = None
         if eligible.send_window is None:
             return Proposal(None, reason="No Offer: no send time left (max_send_delay_hours)")
+        if not eligible.options:  # e.g. every paid option dropped and no Nudge on this Trigger
+            return Proposal(None, reason="No Offer: the Rules leave no option")
         response = self.client.messages.create(
             model=self.model,
             max_tokens=MAX_TOKENS,

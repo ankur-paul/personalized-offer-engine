@@ -35,7 +35,8 @@ WORLD_TABLES = (
 
 
 class FakeAgent:
-    """Stands in for `anthropic.Anthropic`: always picks the Nudge from the Eligible Set it is shown."""
+    """Stands in for `anthropic.Anthropic`: picks the Nudge when the Eligible Set it is shown has one (an abandoned
+    cart or expiring points, QnA Q56), else No Offer."""
 
     def __init__(self):
         self.messages = self
@@ -46,7 +47,8 @@ class FakeAgent:
         with self.lock:
             self.calls += 1
         prompt = kwargs["messages"][0]["content"]
-        index = int(re.search(r"^\[(\d+)\] nudge:", prompt, re.MULTILINE).group(1))
+        nudge = re.search(r"^\[(\d+)\] nudge:", prompt, re.MULTILINE)
+        index = int(nudge.group(1)) if nudge else -1
         tool_input = {
             "option_index": index,
             "params": dict.fromkeys(("pct", "cap", "amount", "min_basket", "multiplier")),
@@ -155,7 +157,7 @@ def test_rerun_with_the_cache_makes_no_agent_calls(src):
     result = offline.run_policy(src, "rules_plus_agent", DAYS, 3, sample, client=first, model="fake")
     assert first.calls > 0 and result.agent_calls == first.calls
     sampled = [o for o in result.offers if o.customer_id in sample]
-    assert sampled and {o.offer_type for o in sampled} == {OfferType.NUDGE}
+    assert {o.offer_type for o in sampled} <= {OfferType.NUDGE}
     assert {o.offer_type for o in result.offers if o.customer_id not in sample} - {OfferType.NUDGE}
 
     again = FakeAgent()

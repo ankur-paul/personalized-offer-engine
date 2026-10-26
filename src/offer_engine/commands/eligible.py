@@ -1,8 +1,11 @@
-"""`offer-engine eligible --demo | --customer ID`: print the Eligible Set and Binding Rules for a Customer."""
+"""`offer-engine eligible --demo | --customer ID [--trigger T]`: print the Eligible Set and Binding Rules for a
+Customer."""
 
 from __future__ import annotations
 
 import argparse
+
+from offer_engine.domain import TriggerKind
 
 TIME_FORMAT = "%Y-%m-%d %H:%M"
 MONEY_PARAMS = {"cap", "amount", "min_basket"}
@@ -17,6 +20,12 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     who.add_argument(
         "--customer", metavar="ID", help="a Customer from the database, at clock now under the current Rules"
     )
+    parser.add_argument(
+        "--trigger",
+        default="daily_sweep",
+        choices=[str(t) for t in TriggerKind],
+        help="the Trigger to decide for (default daily_sweep); only cart_abandoned and points_expiring allow a Nudge",
+    )
     parser.set_defaults(func=run)
 
 
@@ -30,9 +39,11 @@ def run(args: argparse.Namespace) -> int:
     else:
         state, budget, now, catalog = demo_fixture()
         rules, rules_label = RuleSet(), "default Rules"
-    es = eligible_set(state, rules, budget, now, catalog)
+    trigger = TriggerKind(args.trigger)
+    es = eligible_set(state, rules, budget, now, catalog, trigger)
     remaining = rules.weekly_budget - budget.spent - budget.reserved
     print(f"Eligible Set for {es.customer_id} ({state.customer.loyalty_tier}) at {now.strftime(TIME_FORMAT)}")
+    print(f"Trigger: {trigger.replace('_', ' ')}")
     print(f"{rules_label} · budget left this week ₹{remaining:,.0f} of ₹{rules.weekly_budget:,.0f}")
     if es.short_circuit:
         print(f"No Offer: {es.short_circuit} (binding: {es.binding_rule})")

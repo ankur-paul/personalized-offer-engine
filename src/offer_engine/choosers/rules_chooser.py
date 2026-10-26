@@ -64,6 +64,8 @@ def choose(eligible: EligibleSet, state: CustomerState, catalog: Catalog, rules:
         return Proposal(None, reason=f"No Offer: {eligible.short_circuit} ({eligible.binding_rule})")
     if eligible.send_window is None:
         return Proposal(None, reason="No Offer: no send time left (max_send_delay_hours)")
+    if not eligible.options:
+        return Proposal(None, reason="No Offer: the Rules leave no option")
 
     focus = focus_category(state, eligible.at, catalog)
     best: tuple[EligibleOption, dict[str, float], Assessment] | None = None
