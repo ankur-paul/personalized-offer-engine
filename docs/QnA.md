@@ -221,3 +221,7 @@ Decided: yes, in a separate panel marked "hidden from the engine", next to the E
 **Q51. How is the demo driven?**
 Options: scenario buttons on the live page plus one Tester exchange on a phone; the console clock; Telegram only.
 Decided: scenario buttons on the live engine page fire and animate each scenario, with the Offer Card and the Customer Bot's reply shown on the page. One real Telegram exchange as a Tester runs on the phone.
+
+**Q52. Which Customer does `real-discount` use? (T37, 2026-10-26)**
+Options: C01588, a Persuadable with no chat, whom the rules chooser gives 7% off fashion; keep C01377 and retitle the scenario around the Nudge; keep C01377 and let any Offer pass.
+Decided: C01588. C01377 has a Customer Bot chat, so the agent decides for her, and Claude gave her a free Nudge on her grocery cart instead of the rules chooser's 6% off fashion. The scenario now shows no agent caption and no Customer Bot reply: its outcome is the plain Ground Truth draw.

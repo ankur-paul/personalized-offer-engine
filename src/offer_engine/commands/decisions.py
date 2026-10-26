@@ -61,11 +61,14 @@ def run_explain(args: argparse.Namespace) -> int:
         return 0
     for stage in Trace.from_json(stored[0]).stages:
         print()
-        print(stage.title)
-        print(f"  {stage.summary}")
-        for line in DETAILS.get(stage.name, _none)(stage.data, args.prompt):
-            print(f"  {line}")
+        print("\n".join(stage_lines(stage, args.prompt)))
     return 0
+
+
+def stage_lines(stage, prompt: bool = False) -> list[str]:
+    """One stage's block: its title, its summary and its detail lines. The demo scenarios print the same."""
+    details = DETAILS.get(stage.name, _none)(stage.data, prompt)
+    return [stage.title, f"  {stage.summary}", *(f"  {line}" for line in details)]
 
 
 # --- One stage's detail lines ------------------------------------------------------------------
