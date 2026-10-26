@@ -393,3 +393,47 @@ def test_cli_eligible_customer(world_env, eligible_id, capsys):
     assert main(["eligible", "--customer", eligible_id]) == 0
     out = capsys.readouterr().out
     assert f"Eligible Set for {eligible_id}" in out and "rule v0" in out and "nudge" in out
+
+
+# --- Repeatable Offer codes (T36) --------------------------------------------------------------
+
+
+@pytest.fixture
+def demo_seed(monkeypatch):
+    def use(seed):
+        settings = replace(pipeline.load_settings(), demo_seed=seed)
+        monkeypatch.setattr(pipeline, "load_settings", lambda: settings)
+
+    return use
+
+
+def test_demo_seed_gives_the_same_decision_the_same_code(
+    world, world_template, tmp_path, eligible_id, demo_seed
+):
+    import shutil
+
+    from offer_engine.db import connect
+
+    demo_seed(7)
+    first = offer_row(world, pipeline.decide(world, eligible_id, CART, NOW).offer_id)["code"]
+    shutil.copy(world_template, tmp_path / "again.db")
+    again = connect(tmp_path / "again.db")
+    second = offer_row(again, pipeline.decide(again, eligible_id, CART, NOW).offer_id)["code"]
+    again.close()
+    assert first == second and re.fullmatch(r"POE-[A-Z0-9]{6}", first)
+    assert pipeline.new_code(eligible_id, NOW + timedelta(hours=1)) != first
+    demo_seed(8)
+    assert pipeline.new_code(eligible_id, NOW) != first
+
+
+def test_a_taken_demo_code_moves_to_the_next_attempt(world, eligible_id, demo_seed):
+    demo_seed(7)
+    d1 = pipeline.decide(world, eligible_id, CART, NOW)
+    d2 = pipeline.decide(world, eligible_id, CART, NOW, validate=False)
+    codes = [offer_row(world, d.offer_id)["code"] for d in (d1, d2)]
+    assert codes == [pipeline.new_code(eligible_id, NOW), pipeline.new_code(eligible_id, NOW, 1)]
+
+
+def test_without_demo_seed_codes_are_random(eligible_id, demo_seed):
+    demo_seed(None)
+    assert len({pipeline.new_code(eligible_id, NOW) for _ in range(20)}) > 1

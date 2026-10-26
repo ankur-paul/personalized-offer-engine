@@ -66,7 +66,7 @@ def agent(monkeypatch):
         monkeypatch.setattr(
             pipeline, "load_settings", lambda: Settings(anthropic_api_key="test-key", offer_agent_model=model)
         )
-        monkeypatch.setattr(pipeline, "_client", lambda key: client)
+        monkeypatch.setattr(pipeline, "_client", lambda key, mode="live": client)
         return client
 
     return use
