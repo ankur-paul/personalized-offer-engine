@@ -22,6 +22,7 @@ PIPELINE_MODULES = (
     "triggers",
     "daily_sweep",
     "offer_bot",
+    "trace",
 )
 SIM_TABLE = re.compile(r"\bsim_\w+")
 SIM_PACKAGE = "offer_engine.sim"

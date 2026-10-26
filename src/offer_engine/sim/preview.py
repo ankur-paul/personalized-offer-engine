@@ -173,7 +173,7 @@ def _sweep_copy(src: Path, path: Path, at: datetime, rules: RuleSet | None = Non
         migrate(conn)
         if rules is not None:
             rules_store.save_rules(conn, rules, PREVIEW_AUTHOR)
-        with pipeline.chooser_override(lambda state, trigger: rules_chooser.choose):
+        with pipeline.chooser_override(lambda state, trigger: rules_chooser.choose, trace=False):
             daily_sweep.sweep(conn, at)
         return _summarise(conn, at)
     finally:

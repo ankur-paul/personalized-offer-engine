@@ -2,6 +2,7 @@
 
 Pure functions, no database. The Eligible Set is recomputed here, never taken from the chooser. Each failure is
 `code: detail`, with the Rule it broke in brackets where one did, and every failure is reported, not just the first.
+The result also names each check that ran (`CHECK_CODES`), so the Decision trace can mark each passed or failed.
 """
 
 from __future__ import annotations
@@ -33,6 +34,21 @@ COST_TOLERANCE = 1e-6
 
 CaptionChecker = Callable[[str, Proposal, Catalog], list[str]]
 
+# Each check `validate` may run, in order, with the failure codes it reports. The Caption Check's codes are the
+# caption checker's own, so any other code belongs to it.
+CHECK_CODES = {
+    "short_circuit": ("short_circuit",),
+    "offer_type": ("offer_type_not_eligible", "category_not_eligible"),
+    "params": ("param_missing", "param_extra", "param_out_of_range"),
+    "cost_cap": ("cost_over_cap",),
+    "budget": ("over_budget",),
+    "send_window": ("send_at_missing", "send_at_outside_window"),
+    "featured": ("too_many_featured", "featured_unknown", "featured_wrong_category", "featured_not_seen"),
+    "caption": ("caption_missing",),
+    "reason": ("reason_missing",),
+}
+CAPTION_CHECK = "caption_check"
+
 
 def no_caption_check(caption: str, proposal: Proposal, catalog: Catalog) -> list[str]:
     """Accepts every caption. T11 passes the real Caption Check (T08)."""
@@ -52,23 +68,35 @@ def validate(
         return ValidationResult(ok=True)
 
     failures: list[str] = []
+    checks = ["short_circuit"]
     es = eligible_set(state, rules, budget, now, catalog)
     if es.short_circuit is not None:
         failures.append(f"short_circuit: {es.short_circuit} ({es.binding_rule})")
     else:
+        checks.append("offer_type")
         option = _match_option(proposal, es, failures)
         if option is not None:
+            checks += ["params", "cost_cap", "budget"]
             failures += _param_failures(proposal.params, option)
             failures += _cost_failures(proposal, rules, budget, catalog)
+        checks.append("send_window")
         failures += _send_at_failures(proposal.send_at, es, now, rules)
+    checks += ["featured", "caption", "reason"]
     failures += _featured_failures(proposal, state, now, catalog)
     if not proposal.caption.strip():
         failures.append("caption_missing: empty caption")
     if not proposal.reason.strip():
         failures.append("reason_missing: empty reason")
     if proposal.caption.strip():
+        checks.append(CAPTION_CHECK)
         failures += caption_checker(proposal.caption, proposal, catalog)
-    return ValidationResult(ok=not failures, failures=tuple(failures))
+    return ValidationResult(ok=not failures, failures=tuple(failures), checks=tuple(checks))
+
+
+def failed_check(failure: str) -> str:
+    """The check a failure (`code: detail`) came from."""
+    code = failure.split(":", 1)[0]
+    return next((check for check, codes in CHECK_CODES.items() if code in codes), CAPTION_CHECK)
 
 
 def _num(value: float) -> str:

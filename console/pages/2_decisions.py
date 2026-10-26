@@ -1,5 +1,5 @@
 """The Decision log: newest first, with reason, chooser, Binding Rule, rule version and Validation result.
-Select a row to see its Offer's caption and status."""
+Select a row to see its Offer's caption and status, and why the Decision came out as it did."""
 
 from __future__ import annotations
 
@@ -74,3 +74,14 @@ if selection.selection.rows:
     if row["chooser"] == "fallback" and row["agent_output"]:
         st.markdown("**Agent's rejected proposal:**")
         st.code(row["agent_output"], language="json")
+    conn = data.open_db()
+    try:
+        stages = data.decision_trace(conn, int(row["id"]))
+    finally:
+        conn.close()
+    with st.expander("Why"):
+        if stages is None:
+            st.caption("No trace: this Decision was made before traces were kept.")
+        else:
+            st.markdown("\n".join(f"- **{title}:** {summary}" for title, summary in stages))
+            st.caption(f"Full trace: `offer-engine decisions explain {row['id']}`")

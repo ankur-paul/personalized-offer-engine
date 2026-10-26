@@ -1,5 +1,5 @@
 # T35 — Decision trace
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** — · **Branch:** t35-decision-trace
 
 ## Goal
@@ -49,6 +49,29 @@ page (T39) can animate a Decision as it happens. Part 1 of the demo pass: T35 / 
   If tracing makes it more than 15% slower, store full traces only for chat-attached Customers and keep the
   `checks` and `offer` stages for the rest. Record the numbers as `Done as built`.
 - Decisions made before this ticket have no trace. `decisions explain` says so instead of failing.
+- Done as built:
+  - **Sweep timing.** Wall-clock runs of the 10k sweep varied from 35 s to 75 s for the same code, more than the
+    effect being measured, so tracing was measured with cProfile on 3,000 Customers. Full traces cost 4.5 s of
+    32.7 s at first, more than half of it in `Trace.to_json`'s `dataclasses.asdict` deep copy. Without it, full
+    traces cost 2.1 s of 29.7 s (7%, an overestimate under the profiler), so every live Decision keeps a full
+    trace and the chat-only fallback isn't used. `uv run pytest -m slow tests/test_daily_sweep.py` passes. Half
+    the sweep's time is `load_settings()` re-reading `.env` once per Decision in `default_chooser` (existing
+    code; noted under Known issues).
+  - **`trace=False`.** `sim/offline.py` and `sim/preview.py` don't call `decide_many`: they reach the pipeline
+    through the day-step and the Daily Sweep. `trace` is a keyword on `decide`, `decide_many` and
+    `chooser_override`, and both pass it to `chooser_override`.
+  - **Stages.** `fallback` appears only when the agent's proposal is rejected or its call fails, so a passing
+    agent Decision has eight stages. The tests cover both: eight for a passing agent, nine for a rejected one.
+    The `agent` stage's prompt is rebuilt with `agent_chooser.user_prompt` (the same function the agent calls),
+    so `agent_chooser.py` didn't change. A chooser that raised shows as a failed `chooser` check under
+    Validation.
+  - **Checks.** `ValidationResult.checks` names `short_circuit`, `offer_type`, `params`, `cost_cap`, `budget`,
+    `send_window`, `featured`, `caption`, `reason` and `caption_check`. `validation.failed_check(failure)` maps a
+    failure to its check. The `checks` stage marks each check passed, stopped or not reached; `budget` shows the
+    ₹ left and never stops a Decision.
+  - **Also changed:** `generate` wipes `decision_traces` before `decisions` (otherwise the foreign key blocked a
+    re-run). `decisions explain ID --prompt` prints the agent's full prompt. An open range is `null` in the
+    JSON, never `Infinity`.
 
 ## Tests
 - `tests/test_trace.py`:
@@ -73,9 +96,9 @@ Estimated Lift), Valuation (value per option), Agent (or "skipped: no chat"), Va
 and Offer.
 
 ## Done when
-- [ ] Each live Decision stores a trace; `decisions explain <id>` prints it
-- [ ] `decide` calls `on_stage` once per stage, in order
-- [ ] `ValidationResult.checks` lists the checks `validate` ran; the property test passes
-- [ ] `simulate` and Preview impact store no traces; Daily Sweep timing recorded under Details
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T35: decision trace`
+- [x] Each live Decision stores a trace; `decisions explain <id>` prints it
+- [x] `decide` calls `on_stage` once per stage, in order
+- [x] `ValidationResult.checks` lists the checks `validate` ran; the property test passes
+- [x] `simulate` and Preview impact store no traces; Daily Sweep timing recorded under Details
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T35: decision trace`

@@ -132,3 +132,20 @@ def test_rule_history_lists_what_each_version_changed(conn):
         "protect margins",
         "defaults",
     ]
+
+
+def test_decision_trace_lists_stage_summaries(decision_db):
+    from datetime import timedelta
+
+    from offer_engine import pipeline
+    from offer_engine.domain import TriggerKind
+
+    d = pipeline.decide(decision_db, "C00004", TriggerKind.CART_ABANDONED, clock.START + timedelta(hours=10))
+    stages = data.decision_trace(decision_db, d.id)
+    assert stages[0][0] == "Trigger" and stages[-1][0] == "Offer"
+    assert all(summary for _, summary in stages)
+
+
+def test_decision_without_a_trace_has_none(decision_db):
+    first = decision_db.execute("SELECT MIN(id) FROM decisions").fetchone()[0]
+    assert data.decision_trace(decision_db, first) is None

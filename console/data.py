@@ -23,6 +23,7 @@ from offer_engine.domain import BudgetMode, Chooser, RuleSet, TriggerKind
 from offer_engine.sim.policies import POLICIES
 from offer_engine.sim.world import day_step
 from offer_engine.sim.world.day_step import DayReport
+from offer_engine.trace import Trace
 
 TIME_FORMAT = "%Y-%m-%d %H:%M"
 DECISION_LIMIT = 500
@@ -152,6 +153,14 @@ def decisions(
     )
     rows = conn.execute(query, [*params, limit]).fetchall()
     return pd.DataFrame([_decision_row(row) for row in rows], columns=DECISION_COLUMNS)
+
+
+def decision_trace(conn: sqlite3.Connection, decision_id: int) -> list[tuple[str, str]] | None:
+    """Each trace stage's (title, summary); None for a Decision with no trace (made before T35)."""
+    row = conn.execute("SELECT trace FROM decision_traces WHERE decision_id = ?", (decision_id,)).fetchone()
+    if row is None:
+        return None
+    return [(stage.title, stage.summary) for stage in Trace.from_json(row[0]).stages]
 
 
 def _decision_row(row: sqlite3.Row) -> dict:

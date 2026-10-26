@@ -67,6 +67,7 @@ STEPS: list[Callable[[GenContext], None]] = [
 GENERATED_TABLES = (
     "lift_estimates",
     "events",
+    "decision_traces",
     "decisions",
     "offers",
     "chats",

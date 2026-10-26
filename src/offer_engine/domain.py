@@ -283,8 +283,11 @@ class Offer:
 
 @dataclass(frozen=True)
 class ValidationResult:
+    """`checks` names the checks `validate` ran, in order (T35); `failures` may come from any of them."""
+
     ok: bool
     failures: tuple[str, ...] = ()
+    checks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
