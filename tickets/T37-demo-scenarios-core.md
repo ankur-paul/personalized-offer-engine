@@ -1,5 +1,5 @@
 # T37 — Demo scenarios: runner, saving margin, hard limits
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T35, T36 · **Branch:** t37-demo-scenarios
 
 ## Goal
