@@ -54,9 +54,11 @@ page (T39) can animate a Decision as it happens. Part 1 of the demo pass: T35 / 
     effect being measured, so tracing was measured with cProfile on 3,000 Customers. Full traces cost 4.5 s of
     32.7 s at first, more than half of it in `Trace.to_json`'s `dataclasses.asdict` deep copy. Without it, full
     traces cost 2.1 s of 29.7 s (7%, an overestimate under the profiler), so every live Decision keeps a full
-    trace and the chat-only fallback isn't used. `uv run pytest -m slow tests/test_daily_sweep.py` passes. Half
-    the sweep's time is `load_settings()` re-reading `.env` once per Decision in `default_chooser` (existing
-    code; noted under Known issues).
+    trace and the chat-only fallback isn't used. Even so, the slow test's sweep went from passing on main to
+    63.6 s against its 60 s limit, because the sweep was already close to it. Half its time was `load_settings()`
+    re-parsing `.env` once per Decision, so a `[chore]` commit (approved by the user) parses it again only when
+    the file changes. With full traces, `uv run pytest -m slow tests/test_daily_sweep.py -s` now prints
+    `sweep: 43.5 s`.
   - **`trace=False`.** `sim/offline.py` and `sim/preview.py` don't call `decide_many`: they reach the pipeline
     through the day-step and the Daily Sweep. `trace` is a keyword on `decide`, `decide_many` and
     `chooser_override`, and both pass it to `chooser_override`.
