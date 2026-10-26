@@ -138,6 +138,20 @@ def chooser_override(
         _override.reset(token)
 
 
+@contextmanager
+def chooser_wrapper(wrap: Callable[[ChooserFn], ChooserFn]) -> Iterator[None]:
+    """Inside the block, the chooser a Decision would use (an outer override's, else `default_chooser`) goes
+    through `wrap` first. Only demo scenarios use it, to tamper with the agent's answer (T38)."""
+    outer = _override.get() or Override(default_chooser)
+    token = _override.set(
+        replace(outer, choose_for=lambda state, trigger: wrap(outer.choose_for(state, trigger)))
+    )
+    try:
+        yield
+    finally:
+        _override.reset(token)
+
+
 def default_lift_estimator(conn: sqlite3.Connection, now: datetime) -> LiftEstimator:
     """Estimated Lift v1 per segment once `offer-engine lift fit` has run, else none (the choosers use priors)."""
     fitted = segment_lift.load(conn, now)
@@ -300,8 +314,9 @@ def _trace_chooser(
         rec.add(decision_trace.agent_skipped_stage, reason)
         return
     prompt = None
-    if isinstance(primary, AgentChooser) and es.send_window is not None:
-        prompt = user_prompt(es, state, catalog, rules, primary.trigger)
+    agent = getattr(primary, "wrapped", primary)  # a demo tamper wraps the agent
+    if isinstance(agent, AgentChooser) and es.send_window is not None:
+        prompt = user_prompt(es, state, catalog, rules, agent.trigger)
     failures = result.failures if result else ()
     error = next((f for f in failures if f.startswith(CHOOSER_ERROR)), None)
     output = getattr(primary, "last_output", None)

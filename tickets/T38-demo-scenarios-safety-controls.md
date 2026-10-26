@@ -1,5 +1,5 @@
 # T38 — Demo scenarios: safety net and marketer controls
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T37 · **Branch:** t38-demo-safety-controls
 
 ## Goal
@@ -34,6 +34,22 @@ T39 → T40.
 - `rule-change` uses Preview impact, which takes 50–70 s on 10k Customers. Run it with a spinner line in the CLI.
   If that is too slow for a live demo, pass `parallel=True` and note the time as `Done as built`.
 - The live page (T39) builds its buttons from `SCENARIOS`, so it needs no change for these.
+- Done as built: `tampered` also takes `offer_type`. The agent's pick for one prompt varies between calls (C01377 got
+  10% off home once, and a Nudge on the recorded call), so the tamper moves the answer onto the Eligible Set's first
+  % option, with no featured products, before setting `pct=40`. The failure is `param_out_of_range: pct=40 > 30
+  (max_pct_by_loyalty_tier)`, and the agent output in the trace carries a `tampered` key listing what changed.
+- Done as built: `Scenario` gained `wrap_chooser` and `after`, and `Expect` gained `failure` (the start of a
+  Validation failure the Decision must list). Setup, after and restore steps may return lines, which the runner
+  collects into `ScenarioResult.lines`. `pipeline.chooser_wrapper` applies the wrap to the chooser the Decision would
+  use, and the trace finds the agent's prompt through the wrapper's `wrapped`.
+- Done as built: the Customers are C01377 (`agent-breaks-rule`, Fallback 6% off fashion), C01835
+  (`manipulative-caption`, Fallback free shipping), C01588 (`rule-change`) and C00008 (`withdraw`). `rule-change`
+  lowers the bronze tier maximum from 15% to 5%, so 7% off fashion becomes 5%. Preview impact runs in parallel (the
+  default), about 60 s on 10k Customers. `withdraw`'s two queued Offers trip the frequency cap, so its Decision is No
+  Offer by `frequency_cap_count`.
+- Done as built: recorded the four new answers with `AGENT_MODE=replay` and the key, which records only the misses.
+  `AGENT_MODE=record` would ask Claude again for T37's scenarios and could change their answers.
+- Done as built: the tests run on the 50-Customer fixture that T37's tests use, not a 300-Customer one.
 
 ## Tests
 - `tests/demo/test_scenarios.py`, on the 300-Customer fixture with stand-ins:
@@ -51,8 +67,8 @@ AGENT_MODE=replay uv run offer-engine demo check       # 10 PASS
 ```
 
 ## Done when
-- [ ] The four scenarios run and pass; `demo check` shows 10 PASS
-- [ ] The tamper wrapper is used only by scenarios
-- [ ] Recordings re-committed
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T38: demo scenarios safety net and marketer controls`
+- [x] The four scenarios run and pass; `demo check` shows 10 PASS
+- [x] The tamper wrapper is used only by scenarios
+- [x] Recordings re-committed
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T38: demo scenarios safety net and marketer controls`

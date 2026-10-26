@@ -16,7 +16,8 @@ def heading(scenario: Scenario) -> list[str]:
 
 
 def result_lines(result: ScenarioResult, *, trace: bool = True) -> list[str]:
-    """The heading, each trace stage (with `trace`), the Decision, the seeded outcome and PASS or FAIL."""
+    """The heading, each trace stage (with `trace`), the Decision, the seeded outcome, what the scenario's steps
+    reported and PASS or FAIL."""
     lines = heading(result.scenario)
     if trace:
         for stage in result.trace.stages:
@@ -24,6 +25,7 @@ def result_lines(result: ScenarioResult, *, trace: bool = True) -> list[str]:
         lines.append("")
     lines.append(f"Decision: {decision_text(result)}")
     lines += outcome_lines(result)
+    lines += result.lines
     lines.append(verdict(result))
     return lines
 

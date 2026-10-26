@@ -1,22 +1,24 @@
-"""Demo scenarios: the runner, seeded outcomes, setup and restore, and the CLI (T37). Runs on the 50-Customer
-world with stand-in scenarios for its Customers, a fake offer agent and a fake Customer Bot agent."""
+"""Demo scenarios: the runner, seeded outcomes, setup and restore, and the CLI (T37); the tampered agent, the Rule
+change and the withdraw (T38). Runs on the 50-Customer world with stand-in scenarios for its Customers, a fake offer
+agent and a fake Customer Bot agent."""
 
 from __future__ import annotations
 
 import json
 import shutil
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
 
-from offer_engine import pipeline
+from offer_engine import clock, pipeline, rules_store, withdraw
 from offer_engine.choosers import rules_chooser
 from offer_engine.cli import main
 from offer_engine.customer_sim import roleplay
 from offer_engine.db import connect
-from offer_engine.demo import output, runner, scenarios, snapshot
+from offer_engine.demo import output, runner, scenarios, snapshot, tamper
 from offer_engine.demo.scenarios import Expect, Scenario, forget_not_nows, restart, stop, three_not_nows
-from offer_engine.domain import Chooser, OfferType, TriggerKind
+from offer_engine.domain import Chooser, OfferType, ParamRange, Proposal, RuleSet, TriggerKind
 from offer_engine.personas import PersonaCard, path_for
 from offer_engine.rules import in_holdout
 from offer_engine.trace import STAGES
@@ -290,3 +292,152 @@ def test_demo_check_prints_pass_or_fail_per_scenario(demo_world, tmp_path, capsy
     assert lines[0].startswith("PASS holdout · ")
     assert lines[1].startswith("FAIL wrong: expected nudge, got No Offer · ")
     assert lines[2] == "1 of 2 scenarios passed"
+
+
+# --- T38: the safety net and marketer controls ---------------------------------------------------
+
+
+def standin(name, customer_id, expect, **steps) -> Scenario:
+    return Scenario(
+        name, name, "a test", customer_id, steps.pop("setup", None), SWEEP, expect, "Test", **steps
+    )
+
+
+def run_one(conn, monkeypatch, scenario: Scenario) -> runner.ScenarioResult:
+    monkeypatch.setattr(scenarios, "SCENARIOS", [scenario])
+    return runner.run(conn, scenario.name)
+
+
+TAMPER_40 = scenarios.tamper(
+    offer_type=OfferType.PCT_CATEGORY, params={"pct": 40.0}, caption="40% off, just for you."
+)
+
+
+def test_the_t38_scenarios_follow_t37s_six():
+    names = [s.name for s in scenarios.SCENARIOS]
+    assert names[6:] == ["agent-breaks-rule", "manipulative-caption", "rule-change", "withdraw"]
+    assert len(names) == len(set(names)) == 10
+
+
+def test_a_tampered_40pct_proposal_is_rejected_and_the_fallback_offer_passes(demo_world, monkeypatch):
+    expect = Expect(
+        OfferType.PCT_CATEGORY, Chooser.FALLBACK, validation_ok=True, failure="param_out_of_range: pct=40"
+    )
+    result = run_one(demo_world, monkeypatch, standin("breaks", BOT, expect, wrap_chooser=TAMPER_40))
+    assert result.passed, result.mismatches
+    failure = next(f for f in result.decision.validation.failures if f.startswith("param_out_of_range"))
+    assert failure.endswith("(max_pct_by_loyalty_tier)")
+    tier = demo_world.execute("SELECT loyalty_tier FROM customers WHERE id = ?", (BOT,)).fetchone()[0]
+    assert 0 < result.offer["params"]["pct"] <= RuleSet().max_pct_by_loyalty_tier[tier]
+    stages = {s.name: s for s in result.trace.stages}
+    assert "fallback" in stages and not stages["validation"].data["ok"]
+
+
+def test_a_tamper_moves_any_answer_onto_the_option_and_marks_the_agent_output():
+    option = SimpleNamespace(
+        offer_type=OfferType.PCT_CATEGORY, category="beauty", ranges={"pct": ParamRange(5, 30)}
+    )
+    nudge = SimpleNamespace(offer_type=OfferType.NUDGE, category=None, ranges={})
+    eligible = SimpleNamespace(options=(nudge, option), send_window=(datetime(2026, 12, 1, 9), None))
+
+    class Agent:
+        def __init__(self):
+            self.last_output = {"option_index": 0, "params": {}, "caption": "Still there?"}
+
+        def __call__(self, *args):
+            return Proposal(OfferType.NUDGE, caption="Still there?", featured_product_ids=("G1",), reason="r")
+
+    chooser = tamper.tampered(Agent(), offer_type=OfferType.PCT_CATEGORY, params={"pct": 40.0})
+    proposal = chooser(eligible, None, None, None)
+    assert (proposal.offer_type, proposal.category, proposal.params) == (
+        OfferType.PCT_CATEGORY,
+        "beauty",
+        {"pct": 40},
+    )
+    assert proposal.featured_product_ids == () and proposal.caption == "Still there?"
+    assert chooser.last_output["option_index"] == 1
+    assert chooser.last_output["tampered"] == {"option_index": 1, "params": {"pct": 40.0}}
+
+
+def test_the_tampered_caption_fails_the_caption_check(demo_world, monkeypatch):
+    caption = scenarios.MANIPULATIVE_CAPTION
+    expect = Expect(OfferType.PCT_CATEGORY, Chooser.FALLBACK, validation_ok=True, failure="invented_urgency")
+    scenario = standin("caption", BOT, expect, wrap_chooser=scenarios.tamper(caption=caption))
+    result = run_one(demo_world, monkeypatch, scenario)
+    assert result.passed, result.mismatches
+    stage = next(s for s in result.trace.stages if s.name == "validation")
+    assert stage.data["caption_check"]["status"] == "failed"
+    assert result.offer["caption"] != caption
+
+
+def test_a_tamper_leaves_the_rules_chooser_and_later_decisions_alone(demo_world, monkeypatch):
+    assert tamper.tampered(rules_chooser.choose, params={"pct": 40.0}) is rules_chooser.choose
+    no_chat = run_one(
+        demo_world, monkeypatch, standin("no-chat", NO_CHAT, Expect(None), wrap_chooser=TAMPER_40)
+    )
+    assert no_chat.decision.chooser == Chooser.RULES and no_chat.decision.validation.ok
+    run_one(demo_world, monkeypatch, standin("breaks", BOT, Expect(None), wrap_chooser=TAMPER_40))
+    runner.clear_run(demo_world, BOT, clock.now(demo_world))
+    after = pipeline.decide(demo_world, BOT, SWEEP, clock.now(demo_world))
+    assert after.chooser == Chooser.AGENT and after.validation.ok
+
+
+def test_a_wrong_failure_expectation_says_what_failed(demo_world, monkeypatch):
+    result = run_one(
+        demo_world, monkeypatch, standin("plain", NO_CHAT, Expect(None, failure="invented_urgency"))
+    )
+    assert "expected a Validation failure 'invented_urgency', got none" in result.mismatches
+
+
+def test_rule_change_shows_both_decisions_and_the_preview_then_reverts(demo_world, monkeypatch):
+    tier = demo_world.execute("SELECT loyalty_tier FROM customers WHERE id = ?", (BOT,)).fetchone()[0]
+    original = rules_store.current_rules(demo_world)
+    setup, restore = scenarios.rule_change(BOT, scenarios.lower_tier_max(tier, 5.0), f"{tier} maximum to 5%")
+    expect = Expect(OfferType.PCT_CATEGORY, binding_rule="max_pct_by_loyalty_tier", validation_ok=True)
+    result = run_one(demo_world, monkeypatch, standin("change", BOT, expect, setup=setup, restore=restore))
+    assert result.passed, result.mismatches
+    assert result.offer["params"]["pct"] == 5
+    before, preview_line, saved, reverted = result.lines
+    assert before.startswith(f"Before, under Rules v{original[0]}: pct_category") and "pct=5 " not in before
+    assert saved == f"Saved Rules v{original[0] + 1} as demo: {tier} maximum to 5%"
+    assert preview_line.startswith("Preview impact on the next Daily Sweep (01 Dec 10:00): ")
+    assert reverted == f"Reverted: Rules v{original[0] + 2}, saved as demo, equals v{original[0]}"
+    # The Rules are back to their original content, in a new version.
+    assert rules_store.current_rules(demo_world) == (original[0] + 2, original[1])
+    assert [v.author for v in rules_store.list_versions(demo_world)[:2]] == ["demo", "demo"]
+    # Only the scenario's own Decision is left: the one before the change was forgotten.
+    assert (
+        demo_world.execute("SELECT COUNT(*) FROM decisions WHERE customer_id = ?", (BOT,)).fetchone()[0] == 1
+    )
+
+
+def test_withdraw_marks_only_its_own_offers_withdrawn(demo_world, monkeypatch):
+    others = f"SELECT * FROM offers WHERE customer_id != '{NO_CHAT}' ORDER BY id"
+    before = table(demo_world, others)
+    expect = Expect(None, Chooser.RULES, "frequency_cap_count")
+    scenario = standin(
+        "pull", NO_CHAT, expect, setup=scenarios.queue_offers(NO_CHAT), after=scenarios.withdraw_all(NO_CHAT)
+    )
+    for _ in range(2):  # a rerun replaces the first run's Offers
+        result = run_one(demo_world, monkeypatch, scenario)
+        assert result.passed, result.mismatches
+    assert table(demo_world, others) == before
+    own = table(
+        demo_world,
+        f"SELECT code, status FROM offers WHERE customer_id = '{NO_CHAT}' AND caption LIKE 'demo:%'",
+    )
+    assert own == [(f"DEMO-{NO_CHAT}-W1", "withdrawn"), (f"DEMO-{NO_CHAT}-W2", "withdrawn")]
+    assert result.lines == (
+        f"Queued 2 Offers for {NO_CHAT}: DEMO-{NO_CHAT}-W1 free_shipping, DEMO-{NO_CHAT}-W2 nudge",
+        "Emergency withdraw by demo: 2 outstanding Offers withdrawn",
+        f"  DEMO-{NO_CHAT}-W1: withdrawn",
+        f"  DEMO-{NO_CHAT}-W2: withdrawn",
+    )
+    assert withdraw.list_withdrawals(demo_world)[0].author == "demo"
+
+
+def test_output_prints_the_scenarios_lines_before_the_verdict(demo_world, monkeypatch):
+    result = run_one(
+        demo_world, monkeypatch, standin("say", NO_CHAT, Expect(None), setup=scenarios.say("Hello."))
+    )
+    assert output.result_lines(result, trace=False)[-2:] == ["Hello.", output.verdict(result)]

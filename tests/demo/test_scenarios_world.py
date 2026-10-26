@@ -1,4 +1,4 @@
-"""Every demo scenario passes on the 10k seed-7 snapshot with recorded agent answers and no API key (T37)."""
+"""Every demo scenario passes on the 10k seed-7 snapshot with recorded agent answers and no API key (T37, T38)."""
 
 from __future__ import annotations
 
@@ -34,3 +34,10 @@ def test_every_scenario_passes_under_replay(monkeypatch):
     # The recorded answers were used: the agent's, not the Fallback's, and the Customer Bot's message fit.
     nudge = next(r for r in results if r.scenario.name == "lost-cause-nudge")
     assert nudge.decision.chooser == "agent" and nudge.fit != 0
+    # All ten ran (T38), and the tampered scenarios fell back from the agent's recorded answer, not a replay miss.
+    assert len(results) == 10
+    for name in ("agent-breaks-rule", "manipulative-caption"):
+        agent = next(
+            s for s in next(r for r in results if r.scenario.name == name).trace.stages if s.name == "agent"
+        )
+        assert agent.data["error"] is None and "tampered" in agent.data["output"]
