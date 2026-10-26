@@ -1,5 +1,5 @@
 # T41 — Live view: world charts and running totals
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T40 · **Branch:** t41-world-charts
 
 ## Goal
