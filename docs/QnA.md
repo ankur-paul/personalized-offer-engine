@@ -229,3 +229,18 @@ Decided: C01588. C01377 has a Customer Bot chat, so the agent decides for her, a
 **Q53. How should the live engine view look? (T39, 2026-10-26)**
 Asked: will the page be easy to understand, easy on the eyes and clean? T39 set the behaviour but no layout or visual rules, and by T40 the page holds about eight panels.
 Decided: T39 gets a "Look and feel" section. Scenarios and the ticker sit in a left rail, the diagram goes across the top, and below it one card shows the current stage. T40's panels appear only after the Offer stage. Glossary terms get tooltips taken from `GLOSSARY.md`. T38's scenario lines become a numbered "What the scenario did" list. The page uses one accent colour plus green, red and grey for status, the system font and an 8 px spacing grid. The earlier T39 claim was cancelled before any work, so the ticket is claimed fresh with this section in it.
+
+## Round 13: after the demo pass (2026-10-26)
+
+Ankur ran the 10k world to 5 Dec and asked why so few Offers go out, why the agent rarely runs and why the header numbers vanish. The live database showed 7,384 Offers on 1 Dec and 7,017 on 2 Dec, 13,341 of them ₹0 Nudges from the Daily Sweep, then 29 and 134. From 3 Dec most Decisions stop at the frequency cap (14,125 so far). The agent made 21 of about 40,000 Decisions, all for the 7 chat-attached Customers, as PLAN §2.5 intends. The header counts only the current simulated day, so it drops to 0 at each simulated midnight.
+
+**Q54. How should the live page show what the world is doing?**
+Options: charts on the live view; charts on the console's Results page; both.
+Decided: a chart module whose data comes from one Python function and one JSON route, and whose page part is one JS file and one CSS file, so it can move to another page later. It goes on the live view first. Four charts: Decisions per simulated day (Offers and No Offer by reason), the funnel with the Holdout comparison, Offers by hidden Response Class, and the chooser split with the chat-attached Customers. Built in T41.
+
+**Q55. What should the header counters show?**
+Decided: today's number and, beneath it, the total since the clock start, so the numbers no longer drop to 0 at midnight. T41.
+
+**Q56. Should a ₹0 Nudge be held back? (left to Claude)**
+Options: Nudges skip the frequency cap; the Daily Sweep sends no Nudges; price each message's opt-out risk into the value; leave it.
+Decided: a Nudge is eligible only when there is something to remind about, an abandoned cart or expiring points, as `GLOSSARY.md` defines it. A Nudge from the Daily Sweep, a long gap, a first delivery or `/offers` reminds the Customer of nothing, yet it uses one of the two weekly slots and risks an opt-out. Skipping the cap would let the sweep message 7,000 Customers a day, which is spam. Pricing opt-out risk needs a new Rule and tuning. Built test-first in T42.
