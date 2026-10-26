@@ -36,6 +36,7 @@ Work is split into tickets in `tickets/`. Before you pick, start or finish a tic
 - Every feature or module you build ships with tests covering its behaviour, in the same commit.
 - Changes to the Rules engine or Validation are written test-first, including the property test that random rule-breaking proposals never pass.
 - Before every commit, run the full test suite once. Commit only when it is green; if it goes red, fix the cause first.
+- `uv run pytest` runs in parallel on every core; add `-n 0` for a quick run of one file. Run `-m slow` timing tests alone, since a run beside them skews their timing.
 - `KEY= uv run …` does not unset a `.env` key: an empty variable falls back to the `.env` value. To run or check something without a key, empty it in `.env`.
 
 ## Friction log
