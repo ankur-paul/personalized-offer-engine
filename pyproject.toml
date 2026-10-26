@@ -30,6 +30,7 @@ pythonpath = ["."]
 markers = [
     "live: talks to Telegram or the Claude API; run with -m live",
     "slow: long-running; run with -m slow",
+    "demo: needs the demo snapshot data/demo.db; skipped without it",
 ]
 
 [tool.ruff]

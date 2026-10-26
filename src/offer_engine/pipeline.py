@@ -445,11 +445,29 @@ def _insert_offer(conn, decision: Decision, proposal: Proposal, es, state, catal
                 raise
 
 
+_code_seed: ContextVar[int | None] = ContextVar("code_seed", default=None)
+
+
+@contextmanager
+def seeded_codes(seed: int) -> Iterator[None]:
+    """Inside the block, Offer codes come from `seed` as they do with `DEMO_SEED` set. A demo scenario uses it, so
+    its Offer Card, and the Customer Bot's recorded answer to it, are the same on every run."""
+    token = _code_seed.set(seed)
+    try:
+        yield
+    finally:
+        _code_seed.reset(token)
+
+
 def new_code(customer_id: str | None = None, at: datetime | None = None, attempt: int = 0) -> str:
-    """A random Offer code, or with `DEMO_SEED` set, one derived from the seed, the Customer, the Decision time
-    and the attempt, so a demo rerun from the snapshot sends the same codes. Retry a taken code with the next
-    `attempt`."""
-    seed = load_settings().demo_seed if customer_id is not None and at is not None else None
+    """A random Offer code, or with `DEMO_SEED` set (or inside `seeded_codes`), one derived from the seed, the
+    Customer, the Decision time and the attempt, so a demo rerun from the snapshot sends the same codes. Retry a
+    taken code with the next `attempt`."""
+    seed = None
+    if customer_id is not None and at is not None:
+        seed = _code_seed.get()
+        if seed is None:
+            seed = load_settings().demo_seed
     if seed is None:
         return CODE_PREFIX + "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
     digest = hashlib.sha256(f"{seed}|{customer_id}|{_iso(at)}|{attempt}".encode()).digest()

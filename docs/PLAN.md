@@ -187,6 +187,6 @@ The demo pass (T35–T40) makes the demo repeatable and shows each Decision as i
 ### Scenarios
 - A scenario has a name, a title, the point it proves, its Customer, setup steps, a Trigger, the expected Decision (Offer Type or No Offer, chooser, Binding Rule, Validation result) and an outcome seed. The scenarios live in `offer_engine/demo/scenarios.py`.
 - A scenario runs on the demo database at the snapshot's simulated time, on its own Customer. A scenario that changes the Rules restores them before it ends. Any order of scenarios gives the same results.
-- Customers come from the frozen Persona Cards where one fits. Otherwise the scenario names a Customer found in the seed-7 world. A scenario uses a Customer the engine actually treats as it claims; nothing is forced. On 2026-10-26, C01377 gets 6% off fashion from the rules chooser.
+- Customers come from the frozen Persona Cards where one fits. Otherwise the scenario names a Customer found in the seed-7 world. A scenario uses a Customer the engine actually treats as it claims; nothing is forced. C01377 gets 6% off fashion from the rules chooser but a Nudge from the agent, so `real-discount` uses C01588, a Persuadable with no chat (QnA Q52).
 - The outcome chance is Ground Truth's 7-day chance for the Offer, nudged by the recorded message fit by at most ±30%. The flip is seeded by the scenario name and `SEED`. A scenario settles its own Offer, so scenario Offers never reach Telegram.
 - `offer-engine demo check` runs every scenario on a fresh copy of the snapshot and prints PASS or FAIL for each.
