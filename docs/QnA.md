@@ -252,3 +252,7 @@ A design critique of the live view at 1280 px found that playback often happened
 **Q57. Where does Latest Decisions go in the rail? (T43)**
 Options: below the scenario groups, as T39's Look and feel set it; above them.
 Decided: above them. Below 11 scenario buttons the ticker sat about 1,500 px down, so a viewer had to scroll to find it, and clicking a row played the trace out of sight. With the ticker on top, both ways to start a playback are above the fold. Narrow screens keep T39's order.
+
+**Q58. Do Customer Bot reactions get a page of their own? (T44)**
+Options: a page listing every Customer Bot reaction; show each reaction in the live view when its Decision plays back.
+Decided: in the live view. There are 7 Customer Bots, 4 reactions in the dev database and none in the demo snapshot, so a page of them would be nearly empty. A reaction ends one Decision, and "What the Customer did" below the Offer stage already shows it after a scenario run. Playback now fills that panel from the stored reaction or fate, and an Agent filter on Latest Decisions finds the few Decisions that used the agent.

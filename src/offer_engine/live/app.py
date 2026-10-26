@@ -3,8 +3,10 @@
 A scenario runs in a worker thread and hands each trace stage to its run as the pipeline makes it; the page reads
 the run's stages as Server-Sent Events and animates them. Stored traces of recent Decisions play back the same way.
 The page shows what the trace says and nothing more, except below the Offer stage (T40): the scenario's seeded
-outcome and a truth panel marked "Hidden from the engine", and below that the world charts (T41). Like `commands` and `console` this is an entry point, so
-it may read Ground Truth through `sim.explain`; the pipeline and the trace still never do.
+outcome and a truth panel marked "Hidden from the engine", and below that the world charts (T41). A played-back Offer's
+outcome comes from the simulator's stored reactions and fates (T44). Like `commands` and `console` this is an entry
+point, so it may read Ground Truth through `sim.explain` and the `sim_*` tables; the pipeline and the trace still never
+do.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ from offer_engine.commands._format import fetch_decisions, offer_terms
 from offer_engine.config import load_settings
 from offer_engine.db import connect
 from offer_engine.demo import runner, scenarios, snapshot
-from offer_engine.domain import OfferType
+from offer_engine.domain import Chooser, OfferType
 from offer_engine.offer_bot.delivery import offer_from_row
 from offer_engine.offer_card import render_offer_card
 from offer_engine.rules_store import current_rules
@@ -59,6 +61,9 @@ _TESTER_SUFFIX = re.compile(r"-t\d+$")
 
 # The modes the page's Agent switch offers; `record` stays a `.env` setting.
 PageAgentMode = Literal["replay", "live"]
+# The ticker's filter. "agent" keeps the Fallback too: the LLM was called for both.
+TickerFilter = Literal["agent"]
+AGENT_CHOOSERS = (Chooser.AGENT, Chooser.FALLBACK)
 
 RunScenario = Callable[..., runner.ScenarioResult]
 # The browser's basic-auth answer, or None when it sent none. At module level: FastAPI resolves the annotation by name.
@@ -229,10 +234,10 @@ def create_app(
         )
 
     @app.get("/decisions/latest")
-    def latest() -> list[dict[str, Any]]:
+    def latest(chooser: TickerFilter | None = None) -> list[dict[str, Any]]:
         names = {card.customer_id: card.name for card in personas.load_all(personas_dir)}
         with closing(connect(db_path)) as conn:
-            return latest_decisions(conn, names)
+            return latest_decisions(conn, names, choosers=AGENT_CHOOSERS if chooser else None)
 
     @app.get("/decisions/{decision_id}/trace")
     def trace(decision_id: int) -> list[dict[str, Any]]:
@@ -263,6 +268,14 @@ def create_app(
             raise HTTPException(404, f"no Offer {offer_id}")
         # The card the Offer Bot sends: no catalog names, as `delivery` draws it.
         return Response(render_offer_card(offer_from_row(row), {}), media_type="image/png")
+
+    @app.get("/offers/{offer_id}/outcome")
+    def outcome(offer_id: int) -> dict[str, Any]:
+        """A played-back Offer's outcome, in the shape a scenario run's result has; null until the Customer reacts."""
+        with closing(connect(db_path)) as conn:
+            if conn.execute("SELECT 1 FROM offers WHERE id = ?", (offer_id,)).fetchone() is None:
+                raise HTTPException(404, f"no Offer {offer_id}")
+            return {"outcome": stored_outcome(conn, offer_id)}
 
     @app.get("/counters")
     def get_counters() -> dict[str, Any]:
@@ -362,6 +375,41 @@ def truth_json(view: explain.TruthView) -> dict[str, Any]:
     }
 
 
+def stored_outcome(conn: sqlite3.Connection, offer_id: int) -> dict[str, Any] | None:
+    """The Customer Bot's reaction from `sim_bot_responses`, else the drawn fate from `sim_offer_fates`, else None.
+    Simulator tables, read for the page as the truth panel reads Ground Truth. The Offer Bot's answer isn't stored."""
+    bot = conn.execute(
+        "SELECT p_base, fit, p_used, buys, claims, reply FROM sim_bot_responses WHERE offer_id = ?",
+        (offer_id,),
+    ).fetchone()
+    if bot is not None:
+        return {
+            "p_base": bot["p_base"],
+            "fit": bot["fit"],
+            "p_used": bot["p_used"],
+            "buys": bool(bot["buys"]),
+            "claims": bool(bot["claims"]),
+            "reply": bot["reply"],
+            "bot_reply": None,
+        }
+    fate = conn.execute(
+        "SELECT buys, claim_at, p_used, source FROM sim_offer_fates WHERE offer_id = ?", (offer_id,)
+    ).fetchone()
+    if fate is None:
+        return None
+    # A Tester's fate is drawn when they claim, so it has no `claim_at` of its own.
+    claims = bool(fate["buys"]) or fate["claim_at"] is not None or fate["source"] == "tester_claim"
+    return {
+        "p_base": fate["p_used"],
+        "fit": None,
+        "p_used": fate["p_used"],
+        "buys": bool(fate["buys"]),
+        "claims": claims,
+        "reply": None,
+        "bot_reply": None,
+    }
+
+
 def counters(conn: sqlite3.Connection, now: datetime) -> dict[str, Any]:
     """The simulated day so far, and the same since the clock start under `since_start` (QnA Q55)."""
     day = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -398,17 +446,26 @@ def _tally(conn: sqlite3.Connection, start: str, end: str) -> dict[str, Any]:
 
 
 def latest_decisions(
-    conn: sqlite3.Connection, names: dict[str, str] | None = None, limit: int = LATEST_LIMIT
+    conn: sqlite3.Connection,
+    names: dict[str, str] | None = None,
+    limit: int = LATEST_LIMIT,
+    choosers: tuple[Chooser, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    """The newest Decisions with their Offer terms, the Customer's name from `names` (None without a Persona Card),
-    and whether each has a trace to play."""
+    """The newest Decisions, only `choosers`' when given, with their Offer terms, the chooser, the Customer's name from
+    `names` (None without a Persona Card), whether each has a trace to play and whether a Customer Bot replied."""
     names = names or {}
-    rows = fetch_decisions(conn, last=limit)
+    rows = fetch_decisions(conn, last=limit, choosers=choosers)
+    marks, ids = ",".join("?" * len(rows)), [r["id"] for r in rows]
     traced = {
         r[0]
+        for r in conn.execute(f"SELECT decision_id FROM decision_traces WHERE decision_id IN ({marks})", ids)
+    }
+    offer_ids = [r["offer_id"] for r in rows if r["offer_id"] is not None]
+    reacted = {
+        r[0]
         for r in conn.execute(
-            f"SELECT decision_id FROM decision_traces WHERE decision_id IN ({','.join('?' * len(rows))})",
-            [r["id"] for r in rows],
+            f"SELECT offer_id FROM sim_bot_responses WHERE offer_id IN ({','.join('?' * len(offer_ids))})",
+            offer_ids,
         )
     }
     return [
@@ -420,7 +477,9 @@ def latest_decisions(
             "trigger": r["trigger"],
             "offer": offer_terms(r),
             "offer_id": r["offer_id"],
+            "chooser": r["chooser"],
             "traced": r["id"] in traced,
+            "reacted": r["offer_id"] in reacted,
         }
         for r in rows
     ]

@@ -18,6 +18,10 @@
   <div class="layout">
     <aside class="ticker" aria-labelledby="ticker-title">
       <h2 id="ticker-title">Latest Decisions</h2>
+      <div class="switch" id="ticker-filter" role="group" aria-label="Show">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="agent" aria-pressed="false">Agent</button>
+      </div>
       <ol id="ticker"></ol>
       <button id="ticker-more" class="ghost" type="button" aria-controls="ticker" aria-expanded="false">Show 20</button>
     </aside>
@@ -28,7 +32,7 @@
       <section class="bar" id="bar" aria-label="The simulated world">
         <dl class="counters" id="counters"></dl>
         <div class="controls">
-          <div class="switch" role="group" aria-labelledby="agent-label">
+          <div class="switch" id="agent-switch" role="group" aria-labelledby="agent-label">
             <span id="agent-label" class="switch-label">Agent</span>
             <button type="button" data-mode="replay" aria-pressed="false">Replay</button>
             <button type="button" data-mode="live" aria-pressed="false">Live</button>
