@@ -2,8 +2,9 @@
 
 A scenario runs in a worker thread and hands each trace stage to its run as the pipeline makes it; the page reads
 the run's stages as Server-Sent Events and animates them. Stored traces of recent Decisions play back the same way.
-The page shows what the trace says and nothing more. Like `commands` and `console` this is an entry point, but it
-reads no Ground Truth: the truth panel is T40's.
+The page shows what the trace says and nothing more, except below the Offer stage (T40): the scenario's seeded
+outcome and a truth panel marked "Hidden from the engine". Like `commands` and `console` this is an entry point, so
+it may read Ground Truth through `sim.explain`; the pipeline and the trace still never do.
 """
 
 from __future__ import annotations
@@ -16,20 +17,25 @@ import sqlite3
 import threading
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
-from contextlib import closing
+from contextlib import closing, nullcontext
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Body, Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
+from offer_engine import clock, config
 from offer_engine.commands._format import fetch_decisions, offer_terms
 from offer_engine.config import load_settings
 from offer_engine.db import connect
-from offer_engine.demo import runner, scenarios
+from offer_engine.demo import runner, scenarios, snapshot
+from offer_engine.domain import OfferType
+from offer_engine.offer_bot.delivery import offer_from_row
+from offer_engine.offer_card import render_offer_card
+from offer_engine.sim import explain
 from offer_engine.trace import Stage, Trace
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -41,6 +47,9 @@ RUNS_KEPT = 20
 # Seconds between SSE comments while a stage takes long (the agent's call), so proxies keep the stream open.
 KEEPALIVE = 15.0
 TIME_FORMAT = "%Y-%m-%d %H:%M"
+
+# The modes the page's Agent switch offers; `record` stays a `.env` setting.
+PageAgentMode = Literal["replay", "live"]
 
 RunScenario = Callable[..., runner.ScenarioResult]
 # The browser's basic-auth answer, or None when it sent none. At module level: FastAPI resolves the annotation by name.
@@ -103,14 +112,29 @@ def stage_json(stage: Stage) -> dict[str, Any]:
 
 
 def result_json(result: runner.ScenarioResult) -> dict[str, Any]:
-    """What the page shows after the stages: the scenario's check and what its steps reported. The outcome, which
-    reads Ground Truth, is T40's."""
+    """What the page shows after the stages: the scenario's check, what its steps reported and, when an Offer went
+    out, its seeded outcome (ADR 0004): the chance before and after the message-fit nudge, the flip, the Customer
+    Bot's reply and the Offer Bot's answer."""
+    outcome = None
+    if result.p_used is not None:
+        outcome = {
+            "p_base": result.p_base,
+            "fit": result.fit,
+            "p_used": result.p_used,
+            "buys": result.buys,
+            "claims": result.claims,
+            "reply": result.reply,
+            "bot_reply": result.bot_reply,
+        }
     return {
         "scenario": result.scenario.name,
         "decision_id": result.decision.id,
+        "customer_id": result.decision.customer_id,
+        "offer_id": result.decision.offer_id,
         "passed": result.passed,
         "mismatches": list(result.mismatches),
         "lines": list(result.lines),
+        "outcome": outcome,
     }
 
 
@@ -119,21 +143,30 @@ def create_app(
     password: str | None = None,
     run_scenario: RunScenario = runner.run,
     glossary_path: Path = GLOSSARY_PATH,
+    snapshot_path: Path = snapshot.DEFAULT_PATH,
 ) -> FastAPI:
     """The app on the database at `db_path` (default `DB_PATH`). With a `password`, every route asks for it by
-    HTTP basic auth. `run_scenario` is `runner.run` but for tests."""
+    HTTP basic auth. `run_scenario` is `runner.run` but for tests. Reset restores the snapshot at `snapshot_path`."""
     db_path = load_settings().db_path if db_path is None else db_path
     glossary = read_glossary(glossary_path)
     runs: OrderedDict[str, Run] = OrderedDict()
     ids = itertools.count(1)
+    # Held by a scenario run or a Reset, so neither starts while the other writes.
     busy = threading.Lock()
+    # The Agent switch's mode for this process's scenario runs; None follows `.env`.
+    chosen_mode: str | None = None
 
     app = FastAPI(title="Offer Engine live view", dependencies=[Depends(_auth(password))])
 
-    def work(run: Run, name: str) -> None:
+    def agent_mode() -> str:
+        return chosen_mode or ("replay" if load_settings().agent_mode == "replay" else "live")
+
+    def work(run: Run, name: str, mode: str | None) -> None:
         conn = connect(db_path)
         try:
-            result = run_scenario(conn, name, on_stage=lambda stage: run.push("stage", stage_json(stage)))
+            # A ContextVar set in this worker thread, so the Offer Bot and Customer Bots keep `.env`'s mode.
+            with config.agent_mode(mode) if mode else nullcontext():
+                result = run_scenario(conn, name, on_stage=lambda stage: run.push("stage", stage_json(stage)))
             run.push("result", result_json(result), last=True)
         except Exception as e:  # noqa: BLE001 — the page shows the failure instead of waiting forever
             run.push("failure", {"message": f"{type(e).__name__}: {e}"}, last=True)
@@ -168,7 +201,9 @@ def create_app(
         runs[run_id] = run = Run()
         while len(runs) > RUNS_KEPT:
             runs.popitem(last=False)
-        threading.Thread(target=work, args=(run, name), name=f"scenario-{name}", daemon=True).start()
+        threading.Thread(
+            target=work, args=(run, name, chosen_mode), name=f"scenario-{name}", daemon=True
+        ).start()
         return {"run_id": run_id}
 
     @app.get("/runs/{run_id}/events")
@@ -201,7 +236,138 @@ def create_app(
     def get_glossary() -> list[dict[str, str]]:
         return glossary
 
+    @app.get("/customers/{customer_id}/truth")
+    def truth(customer_id: str, decision_id: int | None = None) -> dict[str, Any]:
+        """Ground Truth for the Customer: at `decision_id`'s time with its Eligible Set and Offer, else now."""
+        with closing(connect(db_path)) as conn:
+            view = truth_view(conn, customer_id, decision_id)
+        return truth_json(view)
+
+    @app.get("/offers/{offer_id}/card.png")
+    def card(offer_id: int) -> Response:
+        with closing(connect(db_path)) as conn:
+            row = conn.execute("SELECT * FROM offers WHERE id = ?", (offer_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, f"no Offer {offer_id}")
+        # The card the Offer Bot sends: no catalog names, as `delivery` draws it.
+        return Response(render_offer_card(offer_from_row(row), {}), media_type="image/png")
+
+    @app.get("/counters")
+    def get_counters() -> dict[str, Any]:
+        with closing(connect(db_path)) as conn:
+            return counters(conn, clock.now(conn))
+
+    @app.post("/reset")
+    def reset() -> dict[str, str]:
+        if not busy.acquire(blocking=False):
+            raise HTTPException(409, "A scenario is running")
+        try:
+            with closing(connect(db_path)) as conn:
+                snapshot.reset(conn, snapshot_path)
+                return {"time": clock.now(conn).strftime(TIME_FORMAT)}
+        except FileNotFoundError as e:
+            raise HTTPException(404, str(e)) from None
+        finally:
+            busy.release()
+
+    @app.get("/agent-mode")
+    def get_agent_mode() -> dict[str, Any]:
+        return {"mode": agent_mode(), "live_ready": bool(load_settings().anthropic_api_key)}
+
+    @app.post("/agent-mode")
+    def set_agent_mode(mode: Annotated[PageAgentMode, Body(embed=True)]) -> dict[str, Any]:
+        nonlocal chosen_mode
+        has_key = bool(load_settings().anthropic_api_key)
+        if mode == "live" and not has_key:
+            raise HTTPException(400, "Live needs ANTHROPIC_API_KEY in .env")
+        chosen_mode = mode
+        return {"mode": mode, "live_ready": has_key}
+
     return app
+
+
+def truth_view(conn: sqlite3.Connection, customer_id: str, decision_id: int | None) -> explain.TruthView:
+    """The truth panel's view. For a Decision: at its time, over its trace's Eligible Set at the deepest terms each
+    option allowed, with its Offer at its own terms."""
+    at, offer, candidates = clock.now(conn), None, []
+    if decision_id is not None:
+        row = conn.execute(
+            "SELECT d.at, d.offer_id, t.trace FROM decisions d LEFT JOIN decision_traces t ON t.decision_id = d.id "
+            "WHERE d.id = ? AND d.customer_id = ?",
+            (decision_id, customer_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, f"{customer_id} has no Decision {decision_id}")
+        at = datetime.fromisoformat(row["at"])
+        if row["offer_id"] is not None:
+            offer = conn.execute("SELECT * FROM offers WHERE id = ?", (row["offer_id"],)).fetchone()
+        if row["trace"] is not None:
+            candidates = eligible_candidates(Trace.from_json(row["trace"]))
+    view = explain.truth_for(conn, customer_id, offer, at, candidates)
+    if view is None:
+        raise HTTPException(404, f"{customer_id} has no Ground Truth")
+    return view
+
+
+def eligible_candidates(trace: Trace) -> list[explain.Candidate]:
+    """Each Eligible Set option at the top of every range (the bottom when the range is open)."""
+    stage = next((s for s in trace.stages if s.name == "eligible_set"), None)
+    if stage is None:
+        return []
+    return [
+        explain.Candidate(
+            OfferType(o["offer_type"]),
+            o["category"],
+            {p: lo if hi is None else hi for p, (lo, hi) in o["ranges"].items()},
+        )
+        for o in stage.data["options"]
+    ]
+
+
+def truth_json(view: explain.TruthView) -> dict[str, Any]:
+    return {
+        "customer_id": view.customer_id,
+        "response_class": view.response_class,
+        "time": view.at.strftime(TIME_FORMAT),
+        "no_offer": view.no_offer,
+        "options": [
+            {
+                "offer_type": str(o.offer_type),
+                "category": o.category,
+                "depth": o.depth,
+                "chance": o.chance,
+                "lift": o.lift,
+                "chosen": o.chosen,
+            }
+            for o in view.options
+        ],
+    }
+
+
+def counters(conn: sqlite3.Connection, now: datetime) -> dict[str, Any]:
+    """The simulated day so far: Decisions by Trigger, Offers sent, Claims, Redemptions and what they cost."""
+    day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    span = (_iso(day), _iso(day + timedelta(days=1)))
+    decisions = dict(
+        conn.execute(
+            "SELECT trigger, COUNT(*) FROM decisions WHERE at >= ? AND at < ? GROUP BY 1 ORDER BY 1", span
+        ).fetchall()
+    )
+    sent = conn.execute("SELECT COUNT(*) FROM offers WHERE sent_at >= ? AND sent_at < ?", span).fetchone()[0]
+    claims, redemptions, spend = conn.execute(
+        "SELECT COUNT(*) FILTER (WHERE kind = 'offer_claimed'), COUNT(*) FILTER (WHERE kind = 'offer_redeemed'), "
+        "COALESCE(SUM(amount) FILTER (WHERE kind = 'offer_redeemed'), 0) FROM events "
+        "WHERE kind IN ('offer_claimed', 'offer_redeemed') AND at >= ? AND at < ?",
+        span,
+    ).fetchone()
+    return {
+        "time": now.strftime(TIME_FORMAT),
+        "decisions": decisions,
+        "offers_sent": sent,
+        "claims": claims,
+        "redemptions": redemptions,
+        "spend": round(spend, 2),
+    }
 
 
 def latest_decisions(conn: sqlite3.Connection, limit: int = LATEST_LIMIT) -> list[dict[str, Any]]:
@@ -221,10 +387,15 @@ def latest_decisions(conn: sqlite3.Connection, limit: int = LATEST_LIMIT) -> lis
             "customer": r["customer_id"],
             "trigger": r["trigger"],
             "offer": offer_terms(r),
+            "offer_id": r["offer_id"],
             "traced": r["id"] in traced,
         }
         for r in rows
     ]
+
+
+def _iso(at: datetime) -> str:
+    return at.isoformat(timespec="seconds")
 
 
 def _auth(password: str | None) -> Callable[..., None]:

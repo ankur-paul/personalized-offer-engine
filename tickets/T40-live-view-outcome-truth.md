@@ -1,5 +1,5 @@
 # T40 — Live engine view: outcome, truth panel, controls
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T39 · **Branch:** t40-live-outcome-truth
 
 ## Goal
@@ -47,6 +47,18 @@ Closes the demo pass: T39 → T40, then T29 deploys it (QnA Q45, Q49, Q50, Q51).
 - Reset while a scenario runs gets `409`.
 - The Live switch affects only scenario runs started from this page. The Offer Bot and Customer Bots keep their
   own `AGENT_MODE` from the environment.
+- Done as built: tests are in `tests/live_view/`, not `tests/live/` (the folder name `live` makes `conftest.py`
+  skip them). `truth_for` takes a fifth argument, the Eligible Set options to price: `GET /customers/{id}/truth`
+  takes `?decision_id=` and reads them from that Decision's stored trace, since an Eligible Set computed after the
+  Offer was written would differ (frequency cap). Without `decision_id` it gives the chance with no Offer at the clock's
+  time. `outcomes.buy_chance` now gets the base from a new `outcomes.base_chance`. The Live switch sets a ContextVar
+  through a new `config.agent_mode(mode)` block in the scenario's worker thread; `record` stays a `.env` setting,
+  and `POST /agent-mode` with `live` and no key gets `400`. Reset without a snapshot gets `404`. The scenario result
+  event carries `customer_id`, `offer_id` and `outcome`, and `/decisions/latest` rows carry `offer_id`, so a
+  played-back Decision shows its Offer Card and truth panel; the chance, flip and replies show only for a scenario
+  run. The page hides the bot's `/notnow CODE` line in its reply, since the chip below says which it was. The 390 px
+  check ran in a 390 px iframe, as the browser window can't shrink that far. The counters moving under console auto
+  mode was tested on a fixture day, not watched in the browser.
 
 ## Tests
 - `tests/live/test_app.py`:
@@ -68,9 +80,9 @@ With `start` running, on http://localhost:8502:
 - Press **Reset**: the simulated time goes back to 2026-12-01 00:00.
 
 ## Done when
-- [ ] Outcome panel shows the Offer Card, the chance with its nudge, the flip and the bot's reply
-- [ ] Truth panel shows the true chances against Estimated Lift, marked simulator-only
-- [ ] Counters, Reset and Agent Replay / Live work
-- [ ] The new panels follow T39's Look and feel at 1280 px and 390 px, in both themes
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T40: live view outcome, truth panel and controls`
+- [x] Outcome panel shows the Offer Card, the chance with its nudge, the flip and the bot's reply
+- [x] Truth panel shows the true chances against Estimated Lift, marked simulator-only
+- [x] Counters, Reset and Agent Replay / Live work
+- [x] The new panels follow T39's Look and feel at 1280 px and 390 px, in both themes
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T40: live view outcome, truth panel and controls`

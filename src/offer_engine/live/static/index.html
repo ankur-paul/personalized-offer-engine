@@ -18,8 +18,19 @@
     <nav class="scenarios" id="scenarios" aria-label="Scenarios"></nav>
 
     <main class="main">
-      <!-- T40: the counters strip goes here. -->
-      <div id="counters"></div>
+      <section class="bar" id="bar" aria-label="The simulated world">
+        <dl class="counters" id="counters"></dl>
+        <div class="controls">
+          <div class="switch" role="group" aria-labelledby="agent-label">
+            <span id="agent-label" class="switch-label">Agent</span>
+            <button type="button" data-mode="replay" aria-pressed="false">Replay</button>
+            <button type="button" data-mode="live" aria-pressed="false">Live</button>
+          </div>
+          <div class="reset" id="reset">
+            <button type="button" class="ghost" id="reset-ask">Reset</button>
+          </div>
+        </div>
+      </section>
       <section class="diagram-wrap" id="diagram-wrap" aria-label="The Decision pipeline">
         <svg id="diagram" role="group" aria-label="Decision pipeline, stage by stage"></svg>
       </section>
@@ -29,8 +40,7 @@
         <p>Pick a scenario. Each stage of the Decision lights up as the engine reaches it, with what it
           saw and why. Click a row under Latest Decisions to play back a Decision made earlier.</p>
       </article>
-      <!-- T40: the outcome and truth panels go here. -->
-      <div id="panels"></div>
+      <div class="panels" id="panels"></div>
     </main>
 
     <aside class="ticker" aria-labelledby="ticker-title">

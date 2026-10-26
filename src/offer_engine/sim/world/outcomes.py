@@ -130,12 +130,18 @@ def draw_fate(
 
 def buy_chance(customer: SimCustomer, offer: sqlite3.Row, catalog: Catalog, at: datetime) -> float:
     """Ground Truth's 7-day chance of buying with this Offer, at the Customer's base on `at`'s day."""
-    lapsed = customer.churned_at is not None and customer.churned_at < at
-    base = ground_truth.organic_weekly_chance(customer.traits, lapsed, math.sqrt(season(at.date())))
     offer_type = OfferType(offer["offer_type"])
     category = catalog.categories[redemption_category(offer, catalog, customer.traits)]
     depth = ground_truth.offer_depth(offer_type, json.loads(offer["params"]), category)
-    return ground_truth.p_buy(ground_truth.with_base(customer.truth[offer_type], base), depth)
+    return ground_truth.p_buy(
+        ground_truth.with_base(customer.truth[offer_type], base_chance(customer, at)), depth
+    )
+
+
+def base_chance(customer: SimCustomer, at: datetime) -> float:
+    """The Customer's 7-day chance of buying with no Offer on `at`'s day: lapsed or not, in that day's season."""
+    lapsed = customer.churned_at is not None and customer.churned_at < at
+    return ground_truth.organic_weekly_chance(customer.traits, lapsed, math.sqrt(season(at.date())))
 
 
 def save_fate(conn: sqlite3.Connection, fate: Fate) -> None:

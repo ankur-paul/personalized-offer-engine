@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -43,6 +46,23 @@ class Settings:
     console_password: str | None = None
     agent_mode: str = "live"
     demo_seed: int | None = None
+
+
+# `AGENT_MODE` inside an `agent_mode` block, whatever `.env` says.
+_agent_mode: ContextVar[str | None] = ContextVar("agent_mode", default=None)
+
+
+@contextmanager
+def agent_mode(mode: str) -> Iterator[None]:
+    """Inside the block, `load_settings` gives `agent_mode=mode` in this thread. The live engine view's Replay / Live
+    switch runs its scenarios in one (T40); the bots keep `.env`'s mode."""
+    if mode not in AGENT_MODES:
+        raise ValueError(f"agent mode must be one of {', '.join(AGENT_MODES)}, got {mode!r}")
+    token = _agent_mode.set(mode)
+    try:
+        yield
+    finally:
+        _agent_mode.reset(token)
 
 
 # Parsed env files by absolute path, with the (mtime, size) they were parsed at.
@@ -96,7 +116,7 @@ def load_settings(env_file: Path | None = None) -> Settings:
         seed = int(seed_raw) if seed_raw else DEFAULT_SEED
     except ValueError:
         raise ValueError(f"SEED must be an integer, got {seed_raw!r}") from None
-    agent_mode = values.get("AGENT_MODE", "live").lower()
+    agent_mode = _agent_mode.get() or values.get("AGENT_MODE", "live").lower()
     if agent_mode not in AGENT_MODES:
         raise ValueError(f"AGENT_MODE must be one of {', '.join(AGENT_MODES)}, got {agent_mode!r}")
     demo_seed_raw = values.get("DEMO_SEED")

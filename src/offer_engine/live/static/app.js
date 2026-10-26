@@ -1,5 +1,6 @@
-// The live engine view (T39): scenario buttons, the pipeline diagram, the stage card and the Latest Decisions
-// ticker. The page shows what each trace stage says; it computes no reasons of its own.
+// The live engine view (T39, T40): scenario buttons, the pipeline diagram, the stage card, the Latest Decisions
+// ticker, and after the Offer stage the outcome and truth panels; above the diagram, the counters and controls. The
+// page shows what each trace stage says; it computes no reasons of its own.
 "use strict";
 
 const STAGES = ["trigger", "customer", "checks", "eligible_set", "valuation", "agent", "validation", "fallback", "offer"];
@@ -23,6 +24,13 @@ const CHECK_NAMES = {
   chooser: "Chooser answered",
 };
 const PARAM_NAMES = { pct: "Discount", cap: "Cap", amount: "Amount off", min_basket: "Minimum basket", multiplier: "Points multiplier" };
+// Response Classes, with the Glossary's own words for each.
+const RESPONSE_CLASSES = {
+  persuadable: ["Persuadable", "buys only with an Offer"], sure_thing: ["Sure Thing", "buys anyway"],
+  lost_cause: ["Lost Cause", "doesn't buy either way"], sleeping_dog: ["Sleeping Dog", "less likely to buy because of an Offer"],
+};
+// ADR 0004: the agent moves the chance by at most this share of itself.
+const FIT_CAP = 0.3;
 const OFFER_TYPE_NAMES = {
   pct_category: "% off a category", flat_above_min: "₹ off above a minimum basket", free_shipping: "Free shipping",
   points_multiplier: "Points multiplier", nudge: "Nudge (₹0)",
@@ -286,17 +294,20 @@ const player = {
   viewing: null,
   thinking: false,
   title: "",
+  // A played-back Decision's ID and Offer; a scenario run's come with its result.
+  replay: null,
 
-  start(title) {
+  start(title, replay = null) {
     this.generation += 1;
     clearTimeout(this.timer);
     Object.assign(this, {
       states: Object.fromEntries(STAGES.map((n) => [n, "idle"])),
       queue: [], shown: [], result: null, failure: null, finished: false, completed: false,
-      lastShownAt: 0, viewing: null, thinking: false, title,
+      lastShownAt: 0, viewing: null, thinking: false, title, replay,
     });
     drawDiagram();
     renderCard(null);
+    renderPanels();
     return this.generation;
   },
 
@@ -376,6 +387,7 @@ const player = {
     }
     drawDiagram();
     if (this.viewing === "offer" || this.failure || !this.shown.length) renderCard(this.stageFor("offer"));
+    renderPanels();
     onPlaybackDone();
   },
 
@@ -607,6 +619,202 @@ function scenarioLines() {
   return `${list}${check}`;
 }
 
+// --- Outcome and truth panels (T40): only once the Offer stage is shown ----------------------------
+
+function renderPanels() {
+  const panels = $("panels");
+  const offer = player.stageFor("offer");
+  if (!player.completed || player.failure || !offer) {
+    panels.replaceChildren();
+    return;
+  }
+  const r = player.result;
+  const trigger = player.stageFor("trigger");
+  const decisionId = r ? r.decision_id : player.replay && player.replay.decisionId;
+  const customerId = r ? r.customer_id : trigger && trigger.data.customer_id;
+  const offerId = r ? r.offer_id : player.replay && player.replay.offerId;
+  panels.innerHTML = `${offer.data.offer_type ? outcomePanel(offerId, offer.data, r && r.outcome) : ""}
+    <section class="card panel truth" id="truth" aria-labelledby="truth-title">
+      <span class="hidden-label">Hidden from the engine: simulator only</span>
+      <h2 id="truth-title">What the simulator knows</h2>
+      <p class="summary">Loading the ${withTerms("Ground Truth")}<span class="dots"></span></p>
+    </section>`;
+  if (customerId && decisionId != null) loadTruth(player.generation, customerId, decisionId);
+}
+
+function outcomePanel(offerId, offer, outcome) {
+  const alt = `Offer Card: ${offerText(offer)}, code ${offer.code || ""}, valid until ${when(offer.expires_at)}`;
+  const image = offerId != null
+    ? `<img class="offer-card" src="/offers/${offerId}/card.png" alt="${escapeHtml(alt)}" width="800" height="450">` : "";
+  const steps = outcome ? outcomeSteps(outcome)
+    : `<p class="summary">This Decision was played back from the log. The chance, the flip and the replies show for a scenario run.</p>`;
+  return `<section class="card panel" aria-labelledby="outcome-title">
+      <p class="eyebrow">After the Offer</p>
+      <h2 id="outcome-title">What the Customer did</h2>
+      <div class="outcome-grid">${image}<div class="outcome-steps">${steps}</div></div>
+    </section>`;
+}
+
+function outcomeSteps(o) {
+  const top = Math.max(o.p_base, o.p_used);
+  // Chances are a few percent, so the scale ends just past the larger one, at a whole number of 5 points.
+  const scale = Math.min(1, Math.max(0.05, Math.ceil((top * 1.25) / 0.05) * 0.05));
+  const at = (p) => `${Math.min(100, (p / scale) * 100)}%`;
+  const nudge = o.fit == null
+    ? "No Customer Bot, so no message-fit nudge"
+    : `${o.fit * FIT_CAP >= 0 ? "+" : "−"}${Math.abs(o.fit * FIT_CAP * 100).toFixed(0)}% for message fit, capped at ±${FIT_CAP * 100}%`;
+  const flip = o.buys
+    ? `<span class="state ok">✓ Buys</span>`
+    : `<span class="state idle">✕ Doesn't buy</span>`;
+  const answer = o.buys ? ["ok", "✓ Claimed; the Redemption comes before expiry"]
+    : o.claims ? ["idle", "Claimed, then doesn't buy"] : ["idle", "– Not now"];
+  return `
+    <section>
+      <h3>Chance of buying in 7 days</h3>
+      <div class="meter" role="img" aria-label="${escapeHtml(`From ${fraction(o.p_base)} to ${fraction(o.p_used)}`)}">
+        <div class="meter-fill" style="width:${at(o.p_used)}"></div>
+        <div class="meter-base" style="left:calc(${at(o.p_base)} - 1px)"></div>
+      </div>
+      <div class="meter-scale" aria-hidden="true"><span>0%</span><span>${fraction(scale)}</span></div>
+      <div class="meter-key"><span class="key-base">${withTerms("Ground Truth")} with this Offer ${fraction(o.p_base)}</span>
+        <span class="key-used">after the nudge ${fraction(o.p_used)}</span></div>
+      <p>${escapeHtml(nudge)}</p>
+    </section>
+    <section><h3>The seeded flip</h3>${flip}</section>
+    <section>
+      <h3>The reply</h3>
+      ${o.reply ? `<blockquote class="reply"><span class="who">${withTerms("Customer Bot")}</span>${escapeHtml(replyText(o.reply))}</blockquote>` : ""}
+      <span class="state ${answer[0]}">${withTerms(answer[1])}</span>
+      ${o.bot_reply ? `<blockquote class="reply"><span class="who">${withTerms("Offer Bot")}</span>${escapeHtml(o.bot_reply)}</blockquote>` : ""}
+    </section>`;
+}
+
+// The Customer Bot's message without its `/claim CODE` or `/notnow CODE` line; the chip below says which it was.
+function replyText(reply) {
+  return reply.split("\n").filter((line) => !line.trim().startsWith("/")).join("\n").trim();
+}
+
+async function loadTruth(generation, customerId, decisionId) {
+  let truth;
+  try {
+    truth = await getJson(`/customers/${encodeURIComponent(customerId)}/truth?decision_id=${decisionId}`);
+  } catch (e) {
+    truth = { error: e.message };
+  }
+  const panel = $("truth");
+  if (generation !== player.generation || !panel) return;
+  panel.innerHTML = truthPanel(truth);
+}
+
+function truthPanel(t) {
+  const head = `<span class="hidden-label">Hidden from the engine: simulator only</span>
+    <h2 id="truth-title">What the simulator knows</h2>`;
+  if (t.error) return `${head}<p class="summary">Couldn't load the ${withTerms("Ground Truth")} (${escapeHtml(t.error)}).</p>`;
+  const [name, meaning] = RESPONSE_CLASSES[t.response_class] || [words(t.response_class), ""];
+  const options = (player.stageFor("eligible_set")?.data.options) || [];
+  const estimated = (o) => options.find((e) => e.offer_type === o.offer_type && e.category === o.category)?.estimated_lift;
+  const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + fraction(Math.abs(v));
+  const rows = t.options.map((o) => `<tr class="${o.chosen ? "chosen" : ""}">
+      <td>${o.chosen ? "✓ " : ""}${withTerms(OFFER_TYPE_NAMES[o.offer_type] || words(o.offer_type))}${o.category ? ` · ${escapeHtml(o.category)}` : ""}${o.chosen ? " (sent)" : ""}</td>
+      <td class="num">${fraction(o.chance)}</td>
+      <td class="num">${signed(o.lift)}</td>
+      <td class="num">${estimated(o) == null ? "—" : signed(estimated(o))}</td></tr>`).join("");
+  return `${head}
+    <dl class="facts">
+      <dt>${withTerms("Response Class")}</dt><dd><strong>${escapeHtml(name)}</strong>${meaning ? ` (${escapeHtml(meaning)})` : ""}</dd>
+      <dt>Chance of buying in 7 days with no Offer</dt><dd>${escapeHtml(fraction(t.no_offer))}</dd>
+    </dl>
+    ${rows ? `<div class="table-wrap"><table>
+      <thead><tr><th>Option</th><th class="num">True chance</th><th class="num">True ${withTerms("Lift")}</th>
+      <th class="num">${withTerms("Estimated Lift")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="note">True chances are at the deepest terms each option allowed, and the sent Offer at its own terms.
+        Estimated Lift is the engine's guess of the most an Offer of that type can add.</p>`
+      : `<p class="note">The Decision stopped before the ${withTerms("Eligible Set")}, so there are no options to price.</p>`}`;
+}
+
+// --- Counters and controls (T40) -----------------------------------------------------------------
+
+const counts = { failed: false };
+
+async function refreshCounters() {
+  if (document.hidden) return;
+  let c;
+  try {
+    c = await getJson("/counters");
+  } catch {
+    if (!counts.failed) $("counters").innerHTML = `<div><dt>World</dt><dd class="sub">Couldn't load the counters.</dd></div>`;
+    counts.failed = true;
+    return;
+  }
+  counts.failed = false;
+  const byTrigger = Object.entries(c.decisions);
+  const total = byTrigger.reduce((n, [, k]) => n + k, 0);
+  const tile = (label, value, sub = "") => `<div><dt>${label}</dt><dd>${value}${sub ? ` <span class="sub">${sub}</span>` : ""}</dd></div>`;
+  $("counters").innerHTML = [
+    tile(withTerms("Simulation Clock"), escapeHtml(c.time)),
+    tile(`${withTerms("Decisions")} today`, inr0.format(total), escapeHtml(byTrigger.map(([t, k]) => `${words(t)} ${k}`).join(" · "))),
+    tile("Offers sent", inr0.format(c.offers_sent)),
+    tile(withTerms("Claims"), inr0.format(c.claims)),
+    tile(withTerms("Redemptions"), inr0.format(c.redemptions)),
+    tile("Offer spend", escapeHtml(rupees(c.spend))),
+  ].join("");
+}
+
+async function loadAgentMode(promise = getJson("/agent-mode")) {
+  let state;
+  try {
+    state = await promise;
+  } catch (e) {
+    setStatus(e.status === 400 ? "Live needs ANTHROPIC_API_KEY in .env" : `Couldn't switch the agent (${e.message})`, true);
+    return;
+  }
+  for (const button of document.querySelectorAll(".switch button")) {
+    const live = button.dataset.mode === "live";
+    button.setAttribute("aria-pressed", String(button.dataset.mode === state.mode));
+    button.disabled = live && !state.live_ready && state.mode !== "live";
+    button.title = live
+      ? (state.live_ready ? "Scenario runs call Claude" : "Live needs ANTHROPIC_API_KEY in .env")
+      : "Scenario runs play back recorded answers";
+  }
+}
+
+function setupControls() {
+  document.querySelector(".switch").addEventListener("click", (e) => {
+    const button = e.target.closest("button[data-mode]");
+    if (!button || button.disabled || button.getAttribute("aria-pressed") === "true") return;
+    loadAgentMode(getJson("/agent-mode", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: button.dataset.mode }),
+    })).then(() => setStatus(`Agent: ${button.textContent} for scenario runs`));
+  });
+  const box = $("reset");
+  const ask = () => {
+    box.innerHTML = `<button type="button" class="ghost" id="reset-ask">Reset</button>`;
+  };
+  box.addEventListener("click", async (e) => {
+    const id = e.target.id;
+    if (id === "reset-ask") {
+      box.innerHTML = `<span>Go back to the snapshot? Everything since is lost.</span>
+        <button type="button" class="danger" id="reset-yes">Reset the world</button>
+        <button type="button" class="ghost" id="reset-no">Cancel</button>`;
+      $("reset-no").focus();
+    } else if (id === "reset-no") {
+      ask();
+      $("reset-ask").focus();
+    } else if (id === "reset-yes") {
+      box.innerHTML = `<span>Resetting<span class="dots"></span></span>`;
+      try {
+        const done = await getJson("/reset", { method: "POST" });
+        setStatus(`Reset: the clock is back at ${done.time}`);
+      } catch (err) {
+        setStatus(err.status === 409 ? "A scenario is running; reset when it ends" : `Couldn't reset (${err.message})`, true);
+      }
+      ask();
+      refreshCounters();
+      refreshTicker();
+    }
+  });
+}
+
 // --- Scenarios -----------------------------------------------------------------------------------
 
 let stream = null;
@@ -712,7 +920,7 @@ function renderTicker() {
     list.innerHTML = `<li class="empty">${ticker.failed ? "Couldn't load Decisions." : "No Decisions yet."}</li>`;
   } else {
     list.innerHTML = rows.map((d) => `<li><button type="button" class="row ${d.id === ticker.playing ? "playing" : ""}"
-        data-id="${d.id}" ${d.traced ? "" : "disabled"} title="${d.traced ? "Play this Decision" : "This Decision has no trace"}">
+        data-id="${d.id}" data-offer="${d.offer_id ?? ""}" ${d.traced ? "" : "disabled"} title="${d.traced ? "Play this Decision" : "This Decision has no trace"}">
         <span class="when">#${d.id} · ${escapeHtml(d.time)} · ${escapeHtml(d.customer)} · ${escapeHtml(words(d.trigger))}</span>
         <span class="what">${escapeHtml(offerText(parseTerms(d.offer)))}</span></button></li>`).join("");
   }
@@ -736,7 +944,7 @@ function parseTerms(text) {
   return { offer_type: offerType, category, params };
 }
 
-async function playDecision(id) {
+async function playDecision(id, offerId = null) {
   let stages;
   try {
     stages = await getJson(`/decisions/${id}/trace`);
@@ -747,7 +955,7 @@ async function playDecision(id) {
   closeStream();
   markPlaying(null, id);
   setStatus(`Playing Decision #${id}`);
-  const generation = player.start(`Decision #${id}`);
+  const generation = player.start(`Decision #${id}`, { decisionId: id, offerId });
   for (const stage of stages) player.add(generation, stage);
   player.finish(generation, null);
 }
@@ -780,6 +988,7 @@ function setupTheme() {
 async function main() {
   setupTheme();
   setupTooltips();
+  setupControls();
   player.states = Object.fromEntries(STAGES.map((n) => [n, "idle"]));
   drawDiagram();
   let width = 0;
@@ -790,7 +999,7 @@ async function main() {
   }).observe($("diagram-wrap"));
   $("ticker").addEventListener("click", (e) => {
     const row = e.target.closest("button.row");
-    if (row && !row.disabled) playDecision(Number(row.dataset.id));
+    if (row && !row.disabled) playDecision(Number(row.dataset.id), row.dataset.offer ? Number(row.dataset.offer) : null);
   });
   $("ticker-more").addEventListener("click", () => {
     ticker.long = !ticker.long;
@@ -801,8 +1010,11 @@ async function main() {
   const intro = $("card").querySelector("p:last-child");
   intro.innerHTML = withTerms(intro.textContent.replace(/\s+/g, " "));
   await loadScenarios();
+  loadAgentMode();
   refreshTicker();
+  refreshCounters();
   setInterval(refreshTicker, TICK_MS);
+  setInterval(refreshCounters, TICK_MS);
 }
 
 main();
