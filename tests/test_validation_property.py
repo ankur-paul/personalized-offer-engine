@@ -36,7 +36,7 @@ from offer_engine.domain import (
     RuleSet,
 )
 from offer_engine.rules import RECENT_CATEGORY_DAYS, eligible_set, in_holdout, offer_cost
-from offer_engine.validation import validate
+from offer_engine.validation import failed_check, validate
 
 EXAMPLES = settings(max_examples=500, deadline=None)
 
@@ -185,6 +185,7 @@ def test_unmutated_valid_proposals_pass(case):
         return
     result = case.run()
     assert result.ok is True, result.failures
+    assert result.checks, "a valid Offer ran no checks"
 
 
 # --- Mutations ---------------------------------------------------------------------------------
@@ -428,3 +429,4 @@ def test_rule_breaking_proposals_never_pass(case, data):
     assert result.ok is False, f"{[n for n, _ in expected]} passed Validation"
     for name, expect in expected:
         assert expect.found_in(result.failures), f"{name}: expected {expect} in {result.failures}"
+    assert all(failed_check(f) in result.checks for f in result.failures), (result.checks, result.failures)

@@ -70,6 +70,20 @@ def test_rerun_after_a_trigger_fired(tmp_path):
     assert conn.execute("SELECT COUNT(*) FROM trigger_log").fetchone()[0] == 0
 
 
+def test_rerun_after_a_traced_decision(tmp_path):
+    from datetime import timedelta
+
+    from offer_engine import pipeline
+    from offer_engine.domain import TriggerKind
+
+    conn = connect(tmp_path / "traced.db")
+    run(conn, n_customers=20, months=2, seed=3)
+    pipeline.decide(conn, "C00001", TriggerKind.CART_ABANDONED, clock.START + timedelta(hours=10))
+    assert conn.execute("SELECT COUNT(*) FROM decision_traces").fetchone()[0] == 1
+    run(conn, n_customers=20, months=2, seed=3)
+    assert conn.execute("SELECT COUNT(*) FROM decision_traces").fetchone()[0] == 0
+
+
 def test_other_seed_differs(world, tmp_path):
     other = connect(tmp_path / "other.db")
     run(other, n_customers=150, months=12, seed=8)

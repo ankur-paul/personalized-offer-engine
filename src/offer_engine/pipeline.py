@@ -2,7 +2,7 @@
 
 `default_chooser` and `default_lift_estimator` are separate on purpose: T11 changed only the first, T16 only the
 second. `chooser_override` lets the offline Policy simulator (T26) force its chooser on Decisions the Triggers and
-the Daily Sweep start.
+the Daily Sweep start. Each Decision stores its trace (T35) and hands each stage to `on_stage` as it finishes.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import json
 import secrets
 import sqlite3
 import string
+import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -21,9 +22,10 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from offer_engine import caption_check
+from offer_engine import trace as decision_trace
 from offer_engine.budget import budget_state
 from offer_engine.choosers import rules_chooser
-from offer_engine.choosers.agent_chooser import make_agent_chooser
+from offer_engine.choosers.agent_chooser import AgentChooser, make_agent_chooser, user_prompt
 from offer_engine.config import load_settings
 from offer_engine.customers import load_customer_state, load_customer_states
 from offer_engine.db import load_catalog
@@ -47,6 +49,7 @@ from offer_engine.domain import (
 from offer_engine.lift import segment_lift
 from offer_engine.rules import eligible_set, offer_cost
 from offer_engine.rules_store import current_rules
+from offer_engine.trace import StageListener
 from offer_engine.validation import validate
 
 ChooserFn = Callable[[EligibleSet, CustomerState, Catalog, RuleSet], Proposal]
@@ -66,6 +69,7 @@ MAIN_PARAM = {
     OfferType.POINTS_MULTIPLIER: "multiplier",
 }
 FALLBACK_FAILED = "fallback_failed"
+CHOOSER_ERROR = "chooser_error"
 # Short-circuits that stop a Decision even when Validation is off: nothing overrides opt-out or the Holdout.
 ALWAYS_STOP = ("opt_out", "holdout")
 CODE_PREFIX = "POE-"
@@ -110,6 +114,7 @@ class Override:
     choose_for: ChooserFactory
     validate: bool = True
     prefetch: Prefetch | None = None
+    trace: bool = True
 
 
 _override: ContextVar[Override | None] = ContextVar("chooser_override", default=None)
@@ -117,11 +122,16 @@ _override: ContextVar[Override | None] = ContextVar("chooser_override", default=
 
 @contextmanager
 def chooser_override(
-    choose_for: ChooserFactory, *, validate: bool = True, prefetch: Prefetch | None = None
+    choose_for: ChooserFactory,
+    *,
+    validate: bool = True,
+    prefetch: Prefetch | None = None,
+    trace: bool = True,
 ) -> Iterator[None]:
     """Inside the block, a Decision with no explicit `chooser` uses `choose_for(state, trigger)` instead of
-    `default_chooser`, and `validate=False` turns Validation off as `decide(..., validate=False)` does."""
-    token = _override.set(Override(choose_for, validate, prefetch))
+    `default_chooser`, `validate=False` turns Validation off as `decide(..., validate=False)` does, and
+    `trace=False` stores no traces as `decide(..., trace=False)` does."""
+    token = _override.set(Override(choose_for, validate, prefetch, trace))
     try:
         yield
     finally:
@@ -147,6 +157,8 @@ def decide(
     chooser: ChooserFn | None = None,
     lift_estimator: LiftEstimator | None = None,
     validate: bool = True,
+    on_stage: StageListener | None = None,
+    trace: bool = True,
 ) -> Decision:
     """Decide for one Customer at `now`, write the Decision and, if an Offer was chosen, a `queued` Offer.
 
@@ -156,13 +168,28 @@ def decide(
 
     `validate=False` is for the Blanket 20% Policy only (T26): the chooser's Proposal is written as it is, and
     only opt-out and the Holdout stop it.
+
+    `on_stage` gets each trace stage as it finishes. `trace=False` stores no trace, for the offline Policy
+    simulator and Preview impact.
     """
     catalog = load_catalog(conn)
     version, rules = current_rules(conn)
     state = load_customer_state(conn, customer_id, now)
     budget = budget_state(conn, rules, now)
     return _decide(
-        conn, state, trigger, now, catalog, version, rules, budget, chooser, lift_estimator, validate
+        conn,
+        state,
+        trigger,
+        now,
+        catalog,
+        version,
+        rules,
+        budget,
+        chooser,
+        lift_estimator,
+        validate,
+        on_stage,
+        trace,
     )
 
 
@@ -178,13 +205,20 @@ def _decide(
     chooser: ChooserFn | None,
     lift_estimator: LiftEstimator | None,
     validate: bool = True,
+    on_stage: StageListener | None = None,
+    trace: bool = True,
 ) -> Decision:
     customer_id = state.customer.id
     override = _override.get()
     if override is not None:
         validate = validate and override.validate
+        trace = trace and override.trace
         chooser = chooser or override.choose_for(state, trigger)
+    rec = decision_trace.Recorder(on_stage, keep=trace)
+    rec.add(decision_trace.trigger_stage, trigger, state, now)
+    rec.add(decision_trace.customer_stage, state, now)
     es = _eligible(state, rules, budget, now, catalog, lift_estimator or default_lift_estimator(conn, now))
+    rec.add(decision_trace.checks_stage, state, rules, budget, now, es)
 
     def decision(chooser_used: Chooser, proposal: Proposal | None, binding: str | None, validation=None):
         reason = proposal.reason if proposal else ""
@@ -195,29 +229,41 @@ def _decide(
     if es.short_circuit is not None and (validate or es.short_circuit in ALWAYS_STOP):
         no_offer = Proposal(None, reason=f"No Offer: {es.short_circuit} ({es.binding_rule})")
         return _write(
-            conn, decision(Chooser.RULES, no_offer, es.binding_rule), None, es, state, catalog, rules
+            conn, decision(Chooser.RULES, no_offer, es.binding_rule), None, es, state, catalog, rules, rec=rec
         )
 
+    rec.add(decision_trace.eligible_set_stage, es)
+    rec.add(decision_trace.valuation_stage, es, state, catalog, rules)
     primary = chooser or default_chooser(state, trigger)
     if not validate:
+        started = time.perf_counter()
         proposal = primary(es, state, catalog, rules)
-        return _write(conn, decision(Chooser.RULES, proposal, None), proposal, es, state, catalog, rules)
+        _trace_chooser(rec, primary, es, state, catalog, rules, time.perf_counter() - started, None)
+        rec.add(decision_trace.validation_stage, None)
+        return _write(
+            conn, decision(Chooser.RULES, proposal, None), proposal, es, state, catalog, rules, rec=rec
+        )
     is_rules = primary is rules_chooser.choose
     chooser_used = Chooser.RULES if is_rules else Chooser.AGENT
-    proposal, rejected = _attempt(primary, es, state, catalog, rules, budget, now)
+    started = time.perf_counter()
+    proposal, result = _attempt(primary, es, state, catalog, rules, budget, now)
+    _trace_chooser(rec, primary, es, state, catalog, rules, time.perf_counter() - started, result)
+    rec.add(decision_trace.validation_stage, result)
     agent_output = getattr(primary, "last_output", None)
-    failures: list[str] = []
+    rejected, failures = list(result.failures), []
     if rejected and is_rules:
         failures, rejected = rejected, []
     elif rejected:
         chooser_used = Chooser.FALLBACK
-        proposal, failures = _attempt(rules_chooser.choose, es, state, catalog, rules, budget, now)
+        proposal, fallback = _attempt(rules_chooser.choose, es, state, catalog, rules, budget, now)
+        failures = list(fallback.failures)
+        rec.add(decision_trace.fallback_stage, rejected, proposal, fallback)
     if failures:
         # The rules chooser's own proposal failed Validation: a bug. Log it and send nothing.
         result = ValidationResult(False, tuple(rejected + failures))
         no_offer = Proposal(None, reason="No Offer: the rules chooser's proposal failed Validation")
         failed = decision(chooser_used, no_offer, FALLBACK_FAILED, result)
-        return _write(conn, failed, None, es, state, catalog, rules, agent_output)
+        return _write(conn, failed, None, es, state, catalog, rules, agent_output, rec)
 
     validation = ValidationResult(True, tuple(rejected)) if proposal.offer_type or rejected else None
     binding = None
@@ -232,7 +278,34 @@ def _decide(
         catalog,
         rules,
         agent_output,
+        rec,
     )
+
+
+def _trace_chooser(
+    rec: decision_trace.Recorder,
+    primary: ChooserFn,
+    es: EligibleSet,
+    state: CustomerState,
+    catalog: Catalog,
+    rules: RuleSet,
+    seconds: float,
+    result: ValidationResult | None,
+) -> None:
+    """The agent stage: what the agent was asked and answered, or why the rules chooser decided instead."""
+    if not rec.active:
+        return
+    if primary is rules_chooser.choose:
+        reason = "no chat" if state.chat is None else "the rules chooser decides"
+        rec.add(decision_trace.agent_skipped_stage, reason)
+        return
+    prompt = None
+    if isinstance(primary, AgentChooser) and es.send_window is not None:
+        prompt = user_prompt(es, state, catalog, rules, primary.trigger)
+    failures = result.failures if result else ()
+    error = next((f for f in failures if f.startswith(CHOOSER_ERROR)), None)
+    output = getattr(primary, "last_output", None)
+    rec.add(decision_trace.agent_stage, getattr(primary, "model", None), prompt, output, seconds, error)
 
 
 def _eligible(
@@ -248,14 +321,16 @@ def _eligible(
     return replace(es, options=tuple(replace(o, estimated_lift=estimate(state, o)) for o in es.options))
 
 
-def _attempt(choose: ChooserFn, es, state, catalog, rules, budget, now) -> tuple[Proposal | None, list[str]]:
-    """The chooser's Proposal and its Validation failures; an exception is a failure too."""
+def _attempt(
+    choose: ChooserFn, es, state, catalog, rules, budget, now
+) -> tuple[Proposal | None, ValidationResult]:
+    """The chooser's Proposal and its Validation result; an exception is a failure too, with no checks run."""
     try:
         proposal = choose(es, state, catalog, rules)
     except Exception as exc:  # noqa: BLE001 — the agent may be down; any error falls back
-        return None, [f"chooser_error: {type(exc).__name__}: {exc}"]
+        return None, ValidationResult(False, (f"{CHOOSER_ERROR}: {type(exc).__name__}: {exc}",))
     checker = functools.partial(caption_check.check, validity_days=rules.offer_validity_days)
-    return proposal, list(validate(proposal, state, rules, budget, now, catalog, checker).failures)
+    return proposal, validate(proposal, state, rules, budget, now, catalog, checker)
 
 
 def _option(es: EligibleSet, proposal: Proposal) -> EligibleOption | None:
@@ -275,9 +350,12 @@ def _write(
     catalog: Catalog,
     rules: RuleSet,
     agent_output: dict | None = None,
+    rec: decision_trace.Recorder | None = None,
 ) -> Decision:
-    """Write the Offer (if any) and the Decision, with the agent's raw tool input if any, in one transaction."""
+    """Write the Offer (if any) and the Decision, with the agent's raw tool input if any and its trace, in one
+    transaction. The trace's `offer` stage reaches the listener once the transaction commits."""
     offer_id = None
+    offer_stage = None
     with conn:
         if proposal is not None and proposal.offer_type is not None:
             offer_id = _insert_offer(conn, decision, proposal, es, state, catalog, rules)
@@ -299,7 +377,34 @@ def _write(
                 None if agent_output is None else json.dumps(agent_output, ensure_ascii=False),
             ),
         )
+        if rec is not None and rec.active:
+            offer = _offer_facts(conn, offer_id)
+            args = (proposal, decision.reason, str(decision.chooser), decision.binding_rule, offer)
+            offer_stage = rec.add(decision_trace.offer_stage, *args, notify=False)
+            kept = rec.trace()
+            if kept is not None:
+                conn.execute(
+                    "INSERT INTO decision_traces (decision_id, trace) VALUES (?, ?)",
+                    (cur.lastrowid, kept.to_json()),
+                )
+    if rec is not None:
+        rec.notify(offer_stage)
     return replace(decision, id=cur.lastrowid, offer_id=offer_id)
+
+
+def _offer_facts(conn: sqlite3.Connection, offer_id: int | None) -> dict | None:
+    """The written Offer's code, expiry and costs, for the trace."""
+    if offer_id is None:
+        return None
+    row = conn.execute(
+        "SELECT code, expires_at, worst_case_cost, expected_cost FROM offers WHERE id = ?", (offer_id,)
+    ).fetchone()
+    return {
+        "code": row[0],
+        "expires_at": row[1],
+        "worst_case_cost": round(row[2], 2),
+        "expected_cost": round(row[3], 2),
+    }
 
 
 def _insert_offer(conn, decision: Decision, proposal: Proposal, es, state, catalog, rules) -> int:
@@ -368,6 +473,8 @@ def decide_many(
     chooser: ChooserFn | None = None,
     lift_estimator: LiftEstimator | None = None,
     validate: bool = True,
+    on_stage: StageListener | None = None,
+    trace: bool = True,
 ) -> Iterator[Decision]:
     """`decide` for each Customer in order, loading the catalog, Rules, budget and Estimated Lift once and states in
     batches.
@@ -408,6 +515,8 @@ def decide_many(
                 chooser,
                 lift_estimator,
                 validate,
+                on_stage,
+                trace,
             )
             if d.offer_id is not None:
                 cost = conn.execute(f"SELECT {column} FROM offers WHERE id = ?", (d.offer_id,)).fetchone()[0]

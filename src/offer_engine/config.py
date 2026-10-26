@@ -45,10 +45,28 @@ class Settings:
     demo_seed: int | None = None
 
 
+# Parsed env files by absolute path, with the (mtime, size) they were parsed at.
+_parsed: dict[str, tuple[tuple[int, int], dict[str, str | None]]] = {}
+
+
+def _file_values(path: Path) -> dict[str, str | None]:
+    """The env file's values, parsed again only when it changes. The pipeline loads settings once per Decision,
+    and parsing `.env` each time was half the Daily Sweep's time on 10k Customers."""
+    if not path.is_file():
+        return {}
+    stat = path.stat()
+    key, version = str(path.resolve()), (stat.st_mtime_ns, stat.st_size)
+    cached = _parsed.get(key)
+    if cached is None or cached[0] != version:
+        cached = (version, dotenv_values(path))
+        _parsed[key] = cached
+    return cached[1]
+
+
 def read_env(env_file: Path | None = None) -> dict[str, str]:
     """Non-empty values of ENV_KEYS from the env file, overridden by the process environment."""
     path = env_file if env_file is not None else DEFAULT_ENV_FILE
-    file_values = dotenv_values(path) if path.is_file() else {}
+    file_values = _file_values(path)
     values: dict[str, str] = {}
     for key in ENV_KEYS:
         value = os.environ.get(key) or file_values.get(key)

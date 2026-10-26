@@ -276,6 +276,7 @@ def test_cached_answers_go_through_validation_like_fresh_ones(src):
     (raw,) = conn.execute("SELECT response FROM sim_agent_cache").fetchone()
     bad = {**json.loads(raw), "option_index": 99}
     conn.execute("UPDATE sim_agent_cache SET response = ?", (json.dumps(bad),))
+    conn.execute("DELETE FROM decision_traces")
     conn.execute("DELETE FROM decisions")
     conn.execute("DELETE FROM offers WHERE source = 'live'")
     conn.commit()

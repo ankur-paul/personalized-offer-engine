@@ -113,3 +113,33 @@ def test_bad_demo_seed_raises(clean_env):
     (clean_env / ".env").write_text("DEMO_SEED=x\n")
     with pytest.raises(ValueError, match="DEMO_SEED must be an integer"):
         load_settings()
+
+
+def test_env_file_is_parsed_once_until_it_changes(clean_env, monkeypatch):
+    """The pipeline reads settings once per Decision; re-parsing `.env` each time was half the Daily Sweep."""
+    import os
+
+    from offer_engine import config
+
+    env = clean_env / ".env"
+    env.write_text("AGENT_MODE=live\n")
+    parses = []
+    real = config.dotenv_values
+    monkeypatch.setattr(config, "dotenv_values", lambda path: parses.append(path) or real(path))
+    for _ in range(3):
+        assert load_settings().agent_mode == "live"
+    assert len(parses) == 1
+
+    env.write_text("AGENT_MODE=replay\n")
+    stat = env.stat()
+    os.utime(env, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    assert load_settings().agent_mode == "replay"
+    assert len(parses) == 2
+
+
+def test_removed_env_file_reads_as_empty(clean_env):
+    env = clean_env / ".env"
+    env.write_text("SEED=3\n")
+    assert load_settings().seed == 3
+    env.unlink()
+    assert load_settings().seed == 7

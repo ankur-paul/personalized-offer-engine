@@ -104,7 +104,9 @@ def run_policy(
                 prepare(conn)
                 start = clock.now(conn)
                 prefetch = getattr(factory, "prefetch", None)
-                with pipeline.chooser_override(factory, validate=policy.validate, prefetch=prefetch):
+                with pipeline.chooser_override(
+                    factory, validate=policy.validate, prefetch=prefetch, trace=False
+                ):
                     for day in range(days):
                         day_step.advance(conn, 24, seed)
                         if progress:

@@ -20,7 +20,7 @@ from offer_engine.domain import (
     RuleSet,
 )
 from offer_engine.rules import in_holdout
-from offer_engine.validation import no_caption_check, validate
+from offer_engine.validation import failed_check, no_caption_check, validate
 
 NOW = datetime(2026, 12, 10, 10, 0)
 CATALOG = Catalog(
@@ -449,3 +449,80 @@ def test_reports_every_failure_not_just_the_first():
         "caption_missing",
         "reason_missing",
     ]
+
+
+# --- Checks run (T35) --------------------------------------------------------------------------
+
+ALL_CHECKS = (
+    "short_circuit",
+    "offer_type",
+    "params",
+    "cost_cap",
+    "budget",
+    "send_window",
+    "featured",
+    "caption",
+    "reason",
+    "caption_check",
+)
+
+
+def test_checks_names_every_check_on_a_valid_proposal():
+    result = check()
+    assert result.ok and result.checks == ALL_CHECKS
+
+
+def test_checks_are_the_same_when_the_proposal_fails():
+    proposal = replace(VALID, params={"pct": 25.0, "cap": 300.0}, featured_product_ids=("P404",))
+    result = check(proposal)
+    assert not result.ok and result.checks == ALL_CHECKS
+
+
+def test_no_offer_runs_no_checks():
+    assert check(Proposal(None, reason="nothing pays")).checks == ()
+
+
+def test_short_circuit_skips_the_option_checks():
+    result = check(state=make_state(IN_ID))
+    assert result.checks == ("short_circuit", "featured", "caption", "reason", "caption_check")
+
+
+def test_unknown_option_skips_params_and_cost():
+    result = check(replace(VALID, category="toys"))
+    assert result.checks == (
+        "short_circuit",
+        "offer_type",
+        "send_window",
+        "featured",
+        "caption",
+        "reason",
+        "caption_check",
+    )
+
+
+def test_empty_caption_skips_the_caption_check():
+    result = check(replace(VALID, caption=""))
+    assert "caption" in result.checks and "caption_check" not in result.checks
+
+
+def test_every_failure_belongs_to_a_check_that_ran():
+    def checker(caption, proposal, catalog):
+        return ["invented_urgency: hurry"]
+
+    proposal = replace(
+        VALID,
+        params={"pct": 25.0, "cap": 300.0},
+        send_at=NOW - timedelta(hours=1),
+        featured_product_ids=("P404", "G1", "F3"),
+        reason="",
+    )
+    result = check(proposal, budget=replace(NO_SPEND, spent=49_800.0), caption_checker=checker)
+    assert {failed_check(f) for f in result.failures} == {
+        "params",
+        "budget",
+        "send_window",
+        "featured",
+        "reason",
+        "caption_check",
+    }
+    assert all(failed_check(f) in result.checks for f in result.failures)
