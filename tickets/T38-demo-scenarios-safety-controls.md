@@ -1,5 +1,5 @@
 # T38 — Demo scenarios: safety net and marketer controls
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T37 · **Branch:** t38-demo-safety-controls
 
 ## Goal
