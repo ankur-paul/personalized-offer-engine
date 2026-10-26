@@ -1,5 +1,5 @@
 # T40 — Live engine view: outcome, truth panel, controls
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T39 · **Branch:** t40-live-outcome-truth
 
 ## Goal
