@@ -1,5 +1,5 @@
 # T43 — Live view design pass: playback in view, clear endings, plain labels
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** — · **Branch:** t43-live-view-design-pass
 
 ## Goal
