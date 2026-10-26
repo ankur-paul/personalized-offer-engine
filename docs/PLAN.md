@@ -154,3 +154,39 @@ Defaults chosen when the plan was split into tickets (`tickets/`). Several ticke
 - An offline Policy run covers 28 simulated days after the history ends, with the same seed for every Policy.
 - The adversarial set from M7 is split: bad captions ship with the Caption Check (T08), manipulative customer replies with haggling (T34).
 - If T04 shows bot-to-bot messaging doesn't work, T04 goes BLOCKED and the §8 contingency applies: Customer Bots become a console view.
+
+## Assumed (approved 2026-10-26): the demo
+
+The demo pass (T35–T40) makes the demo repeatable and shows each Decision as it happens. The decisions behind it are in `docs/QnA.md` Round 12 (Q44–Q51):
+- a separate live engine page;
+- recorded agent answers replayed, with a switch to call Claude live;
+- the 10k seed-7 world restored from a snapshot;
+- ten named scenarios in four groups;
+- outcomes shown as a chance with a seeded flip;
+- a Ground Truth panel marked "hidden from the engine";
+- the demo driven from scenario buttons, plus one Tester exchange on a phone.
+
+### Code layout
+- `offer_engine/demo/` holds the snapshot, agent replay and scenarios. `offer_engine/live/` holds the live engine page. Both are entry points like `commands`, `console` and `customer_sim`, so they may import both sides of the Ground Truth boundary. The boundary test doesn't change.
+- The live page is FastAPI with Server-Sent Events and plain HTML, SVG and JS, with no build step. It runs on port 8502 as a fourth process in `offer-engine start`. When `CONSOLE_PASSWORD` is set, it asks for the same password with HTTP basic auth.
+
+### Decision trace
+- Each live Decision stores a stage-by-stage trace as JSON in `decision_traces`. The stages are the Trigger, the Customer's observable summary, each check that can stop an Offer, the Eligible Set with Binding Rules and Estimated Lift, the rules chooser's value per option, the agent's input and answer, each Validation check, any Fallback, and the Offer.
+- The pipeline passes each stage to an optional listener as it finishes, so the live page can animate it.
+- `offer-engine simulate` and Preview impact store no traces. If tracing slows the Daily Sweep on 10k Customers by more than 15%, only chat-attached Customers and scenario runs get a full trace.
+- A trace never holds Ground Truth. The truth panel reads it through `offer_engine/sim/explain.py`.
+- `validate` also returns the names of the checks it ran. Its failures don't change.
+
+### Snapshot and agent replay
+- `data/demo.db` (gitignored) is the 10k seed-7 world after `generate`, `lift fit` and `chats link-showcase`, at its starting simulated time. `offer-engine demo reset` copies it into `DB_PATH` with SQLite's backup API, so running bots keep their connections.
+- `AGENT_MODE` is `live` (the default), `replay` or `record`. It covers the offer agent and the Customer Bot's fit rating.
+- Recordings live in the committed `demo/agent_recordings.jsonl`. Each is keyed by a hash of the model, system prompt, tools and messages.
+- When a replay has no recording, it calls Claude and records the answer if `ANTHROPIC_API_KEY` is set. Otherwise it raises: the offer agent falls back to the rules chooser, and the Customer Bot flips on Ground Truth alone.
+- When `DEMO_SEED` is set, Offer codes come from the seed, the Customer and the Decision time instead of `secrets`.
+
+### Scenarios
+- A scenario has a name, a title, the point it proves, its Customer, setup steps, a Trigger, the expected Decision (Offer Type or No Offer, chooser, Binding Rule, Validation result) and an outcome seed. The scenarios live in `offer_engine/demo/scenarios.py`.
+- A scenario runs on the demo database at the snapshot's simulated time, on its own Customer. A scenario that changes the Rules restores them before it ends. Any order of scenarios gives the same results.
+- Customers come from the frozen Persona Cards where one fits. Otherwise the scenario names a Customer found in the seed-7 world. A scenario uses a Customer the engine actually treats as it claims; nothing is forced. On 2026-10-26, C01377 gets 6% off fashion from the rules chooser.
+- The outcome chance is Ground Truth's 7-day chance for the Offer, nudged by the recorded message fit by at most ±30%. The flip is seeded by the scenario name and `SEED`. A scenario settles its own Offer, so scenario Offers never reach Telegram.
+- `offer-engine demo check` runs every scenario on a fresh copy of the snapshot and prints PASS or FAIL for each.

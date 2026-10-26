@@ -1,5 +1,5 @@
 # T31 — Stretch: Campaigns
-**Status:** TODO
+**Status:** PARKED (after the demo pass, T35–T40; QnA Q47)
 **Prereqs:** T22 · **Branch:** t31-campaigns
 
 ## Goal

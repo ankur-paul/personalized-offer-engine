@@ -1,5 +1,5 @@
 # T32 — Stretch: Estimated Lift v2, two-model uplift learner
-**Status:** TODO
+**Status:** PARKED (after the demo pass, T35–T40; QnA Q47)
 **Prereqs:** T16 · **Branch:** t32-uplift-v2
 
 ## Goal

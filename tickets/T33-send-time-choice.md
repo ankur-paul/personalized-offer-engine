@@ -1,5 +1,5 @@
 # T33 — Stretch: send-time choice
-**Status:** TODO
+**Status:** PARKED (after the demo pass, T35–T40; QnA Q47)
 **Prereqs:** T10, T11, T21 · **Branch:** t33-send-time
 
 ## Goal

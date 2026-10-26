@@ -174,3 +174,50 @@ Refined while building T25: every past Offer that is finished or expired, whatev
 **Q43. Does Blanket 20% send to a Customer who already holds an unexpired Offer?**
 Options: one live Offer at a time; event Triggers only, skipping the Daily Sweep; literally every Trigger, overlapping Offers allowed.
 Decided: one live Offer at a time. Blanket sends at every Trigger, the Daily Sweep included, unless the Customer holds an Offer that is queued, sent or claimed and not expired. It ignores every other Rule. The Daily Sweep is a Trigger, so the literal reading sends every Customer a new Offer each day, and each Offer draws its own 7-day buying chance: purchases would multiply and Blanket would look good because of the simulator, not the Policy.
+
+## Round 12: the demo (2026-10-26)
+
+The live demo felt non-deterministic and hard to follow, for five reasons:
+
+- The offer agent and every Customer Bot reply call Claude fresh each time.
+- Each rehearsal changes the database, and only `generate` resets it, in about 6.5 minutes.
+- All Customers share one random stream per simulated hour, so one extra Offer moves other Customers' outcomes.
+- Delivery and Customer Bot replies run on wall-clock time.
+- The console shows counts, not one Decision moving through the pipeline.
+
+A Decision also stores only its final reason, Binding Rule and Validation failures. It doesn't store the Eligible Set, which Rule removed which option, or the Lift per option.
+
+**Q44. How is the live engine view built?**
+Options: a separate web page fed live by a small FastAPI server; custom components inside Streamlit; one web app replacing Streamlit.
+Decided: a separate page. The server pushes each pipeline stage to an HTML/SVG page as it happens, so the page can animate. Streamlit reruns the whole page on every update. The Streamlit console keeps the Clock, Decision log, Rules and Results pages. Deploy exposes one more port.
+
+**Q45. What does the agent do in the demo?**
+Options: replay recorded answers, with a switch to call Claude live; always live; always replay.
+Decided: replay by default, for both the offer agent and the Customer Bots. Rehearsal and the judged run then show the same picks and captions. The live switch shows a real Claude call behind them.
+
+**Q46. Which world does the demo run on?**
+Options: the 10k seed-7 world from a snapshot, with the view following one spotlight Customer at a time and world totals as counters; a curated world of about 300 Customers.
+Decided: the 10k snapshot. A reset copies it back in seconds, and the results numbers stay those of the world on screen.
+
+**Q47. Demo work before or after deploy and README?**
+Decided: before. T29 deploys what will be shown, and T30's `docs/DEMO.md` follows the demo scenarios. The host account can be set up meanwhile.
+
+Before the next questions, one Decision for C09823 (the cart-abandoner persona) was traced stage by stage on a copy of the database. Claude picked a ₹0 Nudge, and the rules chooser agreed, since every paid option had negative value. Ground Truth makes her a Lost Cause: 3.3% chance of buying within 7 days, 5.3% with the Nudge, 6.5% with free shipping, which her segment's Estimated Lift puts at −0.7%. Her Customer Bot therefore replies "Not now" about 94% of the time.
+
+**Q48. Which scenarios does the demo script include?**
+Decided: all four groups.
+- Saving margin: a Sure Thing gets No Offer, a Lost Cause gets a Nudge, a Persuadable gets a real discount.
+- Hard limits: a Holdout Customer and an opted-out Customer get nothing, and three "Not now" replies start a Fatigue Pause.
+- Safety net: a demo-only switch tampers with the agent's answer so that Validation rejects it and the Fallback runs, and a manipulative caption is blocked.
+- Marketer controls: a Rule change flips a Decision, shown with Preview impact, and emergency withdraw pulls outstanding Offers.
+
+**Q49. How does the demo settle whether a Customer buys?**
+Options: show the chance with a coin flip seeded per scenario; script each outcome; a live random flip.
+Decided: show the chance and what moved it, and seed the flip per scenario. Every run gives the same outcome, and the outcome still comes from Ground Truth as ADR 0004 says. Buying chances are 3–10%, so a live flip mostly shows "Not now".
+
+**Q50. Does the live view show Ground Truth?**
+Decided: yes, in a separate panel marked "hidden from the engine", next to the Estimated Lift. Judges see how far the estimate is from the truth. The pipeline still never reads Ground Truth, and the boundary test keeps passing.
+
+**Q51. How is the demo driven?**
+Options: scenario buttons on the live page plus one Tester exchange on a phone; the console clock; Telegram only.
+Decided: scenario buttons on the live engine page fire and animate each scenario, with the Offer Card and the Customer Bot's reply shown on the page. One real Telegram exchange as a Tester runs on the phone.

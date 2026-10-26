@@ -1,5 +1,5 @@
 # T34 — Stretch: haggling and the manipulative-reply adversarial set
-**Status:** TODO
+**Status:** PARKED (after the demo pass, T35–T40; QnA Q47)
 **Prereqs:** T11, T24 · **Branch:** t34-haggling
 
 ## Goal
