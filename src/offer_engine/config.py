@@ -11,6 +11,7 @@ from dotenv import dotenv_values
 DEFAULT_ENV_FILE = Path(".env")
 DEFAULT_DB_PATH = Path("data/offer_engine.db")
 DEFAULT_SEED = 7
+AGENT_MODES = ("live", "replay", "record")
 
 # Every key `.env.example` documents, in the order check-env prints them.
 ENV_KEYS = (
@@ -23,6 +24,8 @@ ENV_KEYS = (
     "DB_PATH",
     "SEED",
     "CONSOLE_PASSWORD",
+    "AGENT_MODE",
+    "DEMO_SEED",
 )
 REQUIRED_KEYS = ("OFFER_BOT_TOKEN", "OFFER_BOT_USERNAME", "ANTHROPIC_API_KEY")
 
@@ -38,6 +41,8 @@ class Settings:
     db_path: Path = DEFAULT_DB_PATH
     seed: int = DEFAULT_SEED
     console_password: str | None = None
+    agent_mode: str = "live"
+    demo_seed: int | None = None
 
 
 def read_env(env_file: Path | None = None) -> dict[str, str]:
@@ -73,6 +78,14 @@ def load_settings(env_file: Path | None = None) -> Settings:
         seed = int(seed_raw) if seed_raw else DEFAULT_SEED
     except ValueError:
         raise ValueError(f"SEED must be an integer, got {seed_raw!r}") from None
+    agent_mode = values.get("AGENT_MODE", "live").lower()
+    if agent_mode not in AGENT_MODES:
+        raise ValueError(f"AGENT_MODE must be one of {', '.join(AGENT_MODES)}, got {agent_mode!r}")
+    demo_seed_raw = values.get("DEMO_SEED")
+    try:
+        demo_seed = int(demo_seed_raw) if demo_seed_raw else None
+    except ValueError:
+        raise ValueError(f"DEMO_SEED must be an integer, got {demo_seed_raw!r}") from None
     return Settings(
         offer_bot_token=values.get("OFFER_BOT_TOKEN"),
         offer_bot_username=values.get("OFFER_BOT_USERNAME"),
@@ -83,4 +96,6 @@ def load_settings(env_file: Path | None = None) -> Settings:
         db_path=Path(values["DB_PATH"]) if "DB_PATH" in values else DEFAULT_DB_PATH,
         seed=seed,
         console_password=values.get("CONSOLE_PASSWORD"),
+        agent_mode=agent_mode,
+        demo_seed=demo_seed,
     )

@@ -8,6 +8,8 @@ the Daily Sweep start. Each Decision stores its trace (T35) and hands each stage
 from __future__ import annotations
 
 import functools
+import hashlib
+import itertools
 import json
 import secrets
 import sqlite3
@@ -75,21 +77,32 @@ CODE_ALPHABET = string.ascii_uppercase + string.digits
 
 
 def default_chooser(state: CustomerState, trigger: TriggerKind | None = None) -> ChooserFn:
-    """The agent for chat-attached Customers when `ANTHROPIC_API_KEY` is set, else the rules chooser."""
+    """The agent for chat-attached Customers when `ANTHROPIC_API_KEY` is set or `AGENT_MODE` is `replay`, else
+    the rules chooser."""
     settings = load_settings()
-    if state.chat is None or not settings.anthropic_api_key:
+    if state.chat is None or not (settings.anthropic_api_key or settings.agent_mode == "replay"):
         return rules_chooser.choose
     if not settings.offer_agent_model:
         return _missing_model
-    return make_agent_chooser(_client(settings.anthropic_api_key), settings.offer_agent_model, trigger)
+    client = _client(settings.anthropic_api_key, settings.agent_mode)
+    return make_agent_chooser(client, settings.offer_agent_model, trigger)
 
 
 @functools.cache
-def _client(api_key: str):
-    import anthropic
+def _client(api_key: str | None, agent_mode: str = "live"):
+    """The Anthropic client, wrapped in a `ReplayClient` unless `agent_mode` is `live`. With no key, replay can
+    only play recordings: a miss raises and the rules chooser takes over as Fallback."""
+    real = None
+    if api_key:
+        import anthropic
 
-    # No retries: a failed call falls back to the rules chooser within the agent's timeout.
-    return anthropic.Anthropic(api_key=api_key, max_retries=0)
+        # No retries: a failed call falls back to the rules chooser within the agent's timeout.
+        real = anthropic.Anthropic(api_key=api_key, max_retries=0)
+    if agent_mode == "live":
+        return real
+    from offer_engine.demo.replay import ReplayClient
+
+    return ReplayClient(real, agent_mode)
 
 
 def _missing_model(*args) -> Proposal:
@@ -402,14 +415,14 @@ def _insert_offer(conn, decision: Decision, proposal: Proposal, es, state, catal
     )
     expected = rules_chooser.assess(option, proposal.params, catalog, rules, focus).expected_cost
     expires_at = proposal.send_at + timedelta(days=rules.offer_validity_days)
-    while True:
+    for attempt in itertools.count():
         try:
             cur = conn.execute(
                 "INSERT INTO offers (code, customer_id, offer_type, category, params, featured_product_ids,"
                 " created_at, send_at, expires_at, caption, rule_version, worst_case_cost, expected_cost, status,"
                 " source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    new_code(),
+                    new_code(decision.customer_id, decision.at, attempt),
                     decision.customer_id,
                     proposal.offer_type,
                     proposal.category,
@@ -432,8 +445,15 @@ def _insert_offer(conn, decision: Decision, proposal: Proposal, es, state, catal
                 raise
 
 
-def new_code() -> str:
-    return CODE_PREFIX + "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+def new_code(customer_id: str | None = None, at: datetime | None = None, attempt: int = 0) -> str:
+    """A random Offer code, or with `DEMO_SEED` set, one derived from the seed, the Customer, the Decision time
+    and the attempt, so a demo rerun from the snapshot sends the same codes. Retry a taken code with the next
+    `attempt`."""
+    seed = load_settings().demo_seed if customer_id is not None and at is not None else None
+    if seed is None:
+        return CODE_PREFIX + "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+    digest = hashlib.sha256(f"{seed}|{customer_id}|{_iso(at)}|{attempt}".encode()).digest()
+    return CODE_PREFIX + "".join(CODE_ALPHABET[b % len(CODE_ALPHABET)] for b in digest[:6])
 
 
 def _iso(at: datetime) -> str:

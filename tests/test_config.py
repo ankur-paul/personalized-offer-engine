@@ -55,6 +55,8 @@ def test_reads_env_file(clean_env):
         "DB_PATH=/tmp/x.db\n"
         "SEED=42\n"
         "CONSOLE_PASSWORD=pw\n"
+        "AGENT_MODE=Replay\n"
+        "DEMO_SEED=7\n"
     )
     settings = load_settings(env_file)
     assert settings == Settings(
@@ -67,6 +69,8 @@ def test_reads_env_file(clean_env):
         db_path=Path("/tmp/x.db"),
         seed=42,
         console_password="pw",
+        agent_mode="replay",
+        demo_seed=7,
     )
 
 
@@ -97,3 +101,15 @@ def test_bad_seed_raises(clean_env):
 def test_settings_is_frozen():
     with pytest.raises(AttributeError):
         Settings().seed = 1
+
+
+def test_bad_agent_mode_raises(clean_env):
+    (clean_env / ".env").write_text("AGENT_MODE=sometimes\n")
+    with pytest.raises(ValueError, match="AGENT_MODE must be one of live, replay, record"):
+        load_settings()
+
+
+def test_bad_demo_seed_raises(clean_env):
+    (clean_env / ".env").write_text("DEMO_SEED=x\n")
+    with pytest.raises(ValueError, match="DEMO_SEED must be an integer"):
+        load_settings()

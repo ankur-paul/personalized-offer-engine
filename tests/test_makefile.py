@@ -37,3 +37,14 @@ def test_an_existing_world_is_kept(tmp_path):
     commands = dry_run("run", db)
     assert not any("generate" in c or "link-showcase" in c for c in commands)
     assert commands[-1] == "uv run offer-engine start"
+
+
+def test_help_lists_the_demo_targets():
+    result = subprocess.run(["make", "-C", str(ROOT), "help"], capture_output=True, text=True, check=True)
+    targets = [line.split()[0] for line in result.stdout.splitlines() if line.startswith("  ")]
+    assert {"demo-reset", "demo-snapshot"} <= set(targets)
+
+
+@pytest.mark.parametrize("target", ["demo-reset", "demo-snapshot"])
+def test_demo_targets_run_the_demo_command(tmp_path, target):
+    assert dry_run(target, tmp_path / "x.db") == [f"uv run offer-engine demo {target.removeprefix('demo-')}"]

@@ -11,7 +11,7 @@ RUN := uv run offer-engine
 # A failed build removes the half-built database, so the next run starts over.
 .DELETE_ON_ERROR:
 
-.PHONY: run install env world reset console test help
+.PHONY: run install env world reset demo-snapshot demo-reset console test help
 
 run: install env world ## Install, check .env, build the world if missing, start everything
 	$(RUN) start
@@ -34,6 +34,12 @@ reset: ## Delete the database and build a fresh world
 	rm -f $(DB) $(DB)-journal $(DB)-wal $(DB)-shm
 	$(MAKE) world
 
+demo-snapshot: ## Save the database as the demo snapshot (data/demo.db)
+	$(RUN) demo snapshot
+
+demo-reset: ## Copy the demo snapshot back into the database; running bots keep working
+	$(RUN) demo reset
+
 console: install world ## Run only the console
 	uv run streamlit run console/app.py
 
@@ -41,4 +47,4 @@ test: install ## Run the test suite
 	uv run pytest
 
 help: ## List targets
-	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
