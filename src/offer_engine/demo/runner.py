@@ -7,6 +7,9 @@ and the Customer Bot's recorded answer to it, are the same on every run.
 
 A rerun first clears the scenario Customer's earlier run at the same simulated time, so clicking a scenario twice
 shows the same Decision twice instead of hitting the frequency cap.
+
+A scenario's `wrap_chooser` applies to its own Decision only (T38). The lines its steps return come back as
+`ScenarioResult.lines`, in the order the steps ran.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import zlib
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -37,7 +41,8 @@ PERSONAS_DIR = personas.PERSONAS_DIR
 class ScenarioResult:
     """The Decision, its trace and, when an Offer went out, its seeded outcome. `fit` is None for a Customer
     without a Customer Bot; the outcome fields are all None for No Offer. `reply` is the Customer Bot's message
-    and `bot_reply` the Offer Bot's answer to the Claim or "Not now"."""
+    and `bot_reply` the Offer Bot's answer to the Claim or "Not now". `lines` are what the scenario's steps
+    reported, such as the Decision before a Rule change or the withdraw count."""
 
     scenario: Scenario
     decision: Decision
@@ -51,6 +56,7 @@ class ScenarioResult:
     bot_reply: str | None
     passed: bool
     mismatches: tuple[str, ...]
+    lines: tuple[str, ...] = ()
 
     @property
     def offer(self) -> dict[str, Any]:
@@ -73,20 +79,29 @@ def run(
         if on_stage is not None:
             on_stage(stage)
 
-    _clear_earlier_run(conn, scenario.customer_id, now)
-    if scenario.setup is not None:
-        scenario.setup(conn, now)
+    lines: list[str] = []
+
+    def step(do) -> None:
+        if do is not None:
+            lines.extend(do(conn, now) or ())
+
+    clear_run(conn, scenario.customer_id, now)
+    step(scenario.setup)
     try:
         _record_trigger_event(conn, scenario, now)
-        with pipeline.seeded_codes(seed):
+        wrap = scenario.wrap_chooser
+        wrapping = pipeline.chooser_wrapper(wrap) if wrap else nullcontext()
+        with pipeline.seeded_codes(seed), wrapping:
             decision = pipeline.decide(conn, scenario.customer_id, scenario.trigger, now, on_stage=listen)
         outcome = _settle(conn, decision.offer_id, name, seed, now) if decision.offer_id else _NO_OUTCOME
+        step(scenario.after)
     finally:
-        if scenario.restore is not None:
-            scenario.restore(conn, now)
+        step(scenario.restore)
     trace = Trace(stages)
     mismatches = tuple(_mismatches(scenario.expect, decision, trace))
-    return ScenarioResult(scenario, decision, trace, *outcome, passed=not mismatches, mismatches=mismatches)
+    return ScenarioResult(
+        scenario, decision, trace, *outcome, passed=not mismatches, mismatches=mismatches, lines=tuple(lines)
+    )
 
 
 def check(snapshot_path: Path = snapshot.DEFAULT_PATH) -> list[ScenarioResult]:
@@ -121,7 +136,7 @@ def roleplay_agent() -> tuple[Any | None, str | None]:
 # --- Steps ---------------------------------------------------------------------------------------
 
 
-def _clear_earlier_run(conn: sqlite3.Connection, customer_id: str, now: datetime) -> None:
+def clear_run(conn: sqlite3.Connection, customer_id: str, now: datetime) -> None:
     """Remove what an earlier run of a scenario for this Customer wrote at or after `now`. Generated history ends
     before the snapshot's time, so only scenario writes (or a Trigger fired by hand at the same time) go."""
     at = _iso(now)
@@ -233,6 +248,10 @@ def _mismatches(expect: Expect, decision: Decision, trace: Trace) -> list[str]:
         ok = None if decision.validation is None else decision.validation.ok
         if ok != expect.validation_ok:
             out.append(f"expected Validation ok={expect.validation_ok}, got {ok}")
+    if expect.failure is not None:
+        failures = () if decision.validation is None else decision.validation.failures
+        if not any(f.startswith(expect.failure) for f in failures):
+            out.append(f"expected a Validation failure {expect.failure!r}, got {list(failures) or 'none'}")
     return out
 
 

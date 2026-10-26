@@ -4,6 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import sys
+import threading
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from offer_engine.commands.clock import TIME_FORMAT
@@ -82,7 +87,8 @@ def run_scenario(args: argparse.Namespace) -> int:
     conn = _open()
     try:
         migrate(conn)
-        result = runner.run(conn, args.name, seed=args.seed)
+        with _spinner(f"Running {args.name}"):
+            result = runner.run(conn, args.name, seed=args.seed)
     finally:
         conn.close()
     print("\n".join(output.result_lines(result)))
@@ -93,7 +99,8 @@ def run_check(args: argparse.Namespace) -> int:
     from offer_engine.demo import output, runner, snapshot
 
     try:
-        results = runner.check(args.path or snapshot.DEFAULT_PATH)
+        with _spinner("Running every scenario"):
+            results = runner.check(args.path or snapshot.DEFAULT_PATH)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from None
     for result in results:
@@ -101,6 +108,38 @@ def run_check(args: argparse.Namespace) -> int:
     failed = sum(not r.passed for r in results)
     print(f"{len(results) - failed} of {len(results)} scenarios passed")
     return 1 if failed else 0
+
+
+SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+@contextmanager
+def _spinner(text: str) -> Iterator[None]:
+    """A spinner line with the seconds so far on a terminal's stderr, cleared at the end. `rule-change` previews a
+    Rule change, which takes about a minute on 10k Customers."""
+    if not sys.stderr.isatty():
+        yield
+        return
+    done = threading.Event()
+    started = time.monotonic()
+
+    def spin() -> None:
+        frame = 0
+        while not done.wait(0.1):
+            seconds = time.monotonic() - started
+            sys.stderr.write(f"\r{SPINNER[frame % len(SPINNER)]} {text}… {seconds:.0f}s")
+            sys.stderr.flush()
+            frame += 1
+        sys.stderr.write("\r\033[K")
+        sys.stderr.flush()
+
+    thread = threading.Thread(target=spin, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        done.set()
+        thread.join()
 
 
 def _open():
