@@ -1,5 +1,5 @@
 # T36 — Demo snapshot and agent replay
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** — · **Branch:** t36-demo-snapshot-replay
 
 ## Goal
