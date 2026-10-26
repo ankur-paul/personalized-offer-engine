@@ -1,4 +1,4 @@
-/* The live engine view (T39). Look and feel: one accent, green done, red stop or failure, grey not reached; the
+/* The live engine view (T39, T40). Look and feel: one accent, green done, red stop or failure, grey not reached; the
    system font at 14/16/20/28 px; spacing in multiples of 8 px. */
 
 :root {
@@ -336,6 +336,93 @@ details pre {
 .ticker .what { font-weight: 600; overflow-wrap: anywhere; }
 .ticker .empty { font-size: 14px; color: var(--muted); }
 
+/* --- Counters strip and controls (T40) ----------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+}
+.counters { display: flex; flex-wrap: wrap; gap: 8px 24px; min-width: 0; }
+.counters > div { display: grid; gap: 0; }
+.counters dt { font-size: 14px; color: var(--muted); }
+.counters dd { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.counters .sub { font-size: 14px; font-weight: 400; color: var(--muted); }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.switch { display: inline-flex; align-items: center; gap: 0; }
+.switch-label { font-size: 14px; color: var(--muted); margin-right: 8px; }
+.switch button {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+.switch button:first-of-type { border-radius: 8px 0 0 8px; }
+.switch button:last-of-type { border-radius: 0 8px 8px 0; border-left: 0; }
+.switch button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.switch button:disabled { cursor: not-allowed; color: var(--muted); }
+.reset { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.danger {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  background: var(--bad);
+  color: var(--surface);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- Outcome and truth panels (T40) ------------------------------------------------------------- */
+
+.panels { display: grid; gap: 16px; min-width: 0; }
+.panel.truth { background: var(--tint); }
+.hidden-label {
+  display: inline-flex;
+  width: fit-content;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px dashed var(--muted);
+  border-radius: 8px;
+  padding: 0 8px;
+}
+.outcome-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.offer-card { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
+.outcome-steps { display: grid; gap: 16px; min-width: 0; }
+
+.meter { position: relative; height: 16px; border-radius: 8px; background: var(--idle-soft); margin: 8px 0; }
+.meter-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--accent); }
+.meter-base { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+.meter-scale { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); }
+.meter-key { display: flex; flex-wrap: wrap; gap: 0 16px; font-size: 14px; }
+.meter-key .key-base::before { content: "│ "; font-weight: 700; }
+.meter-key .key-used::before { content: "■ "; color: var(--accent); }
+
+.reply {
+  margin: 0;
+  padding: 8px 16px;
+  border-left: 4px solid var(--border);
+  background: var(--surface);
+  border-radius: 0 8px 8px 0;
+}
+.reply .who { display: block; font-size: 14px; color: var(--muted); }
+
+.truth table { background: var(--surface); border-radius: 8px; }
+.truth tr.chosen td { background: var(--accent-soft); font-weight: 600; }
+.truth th { white-space: normal; }
+.truth .note { font-size: 14px; color: var(--muted); }
+
 /* --- Below 1024 px: scenarios become a sideways-scrolling row above the diagram ------------------- */
 
 @media (max-width: 1023px) {
@@ -365,6 +452,9 @@ details pre {
   .scenario { width: 240px; flex: none; scroll-snap-align: start; }
   .card { padding: 16px; }
   .card h2 { font-size: 20px; }
+  .bar { padding: 8px; }
+  .outcome-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .offer-card { max-width: 400px; }
 }
 
 @media (max-width: 480px) {
