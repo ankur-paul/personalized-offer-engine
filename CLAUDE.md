@@ -16,6 +16,8 @@ For everything else, follow `docs/PLAN.md` (v2, agreed). Re-read the relevant se
 
 Work is split into tickets in `tickets/`. Before you pick, start or finish a ticket, read `tickets/README.md`: it has the board, the claim rule and the ticket lifecycle. Prefix commit messages with the ticket ID (`T03: …`).
 
+A ticket that builds a page or screen needs a Look and feel section (layout, colour, type, spacing) before anyone claims it. T39's is the model.
+
 ## Docs
 
 - Record every feature you build in `PROGRESS.md`, in the same commit as the feature.
