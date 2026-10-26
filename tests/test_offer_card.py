@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from offer_engine.domain import Offer, OfferSource, OfferStatus, OfferType
-from offer_engine.offer_card import HEIGHT, WIDTH, format_inr, offer_terms, render_offer_card
+from offer_engine.offer_card import HEIGHT, THEMES, WIDTH, format_inr, offer_terms, render_offer_card
 
 NAMES = {"fashion": "Fashion", "beauty": "Beauty", "home_kitchen": "Home & Kitchen"}
 EXPIRES = datetime(2026, 12, 4, 10, 0)
@@ -94,3 +94,17 @@ def test_nudge_card_has_no_rupee_line():
 def test_long_terms_still_render():
     offer = make_offer(OfferType.PCT_CATEGORY, "x", pct=15, cap=300)
     render_offer_card(offer, {"x": "Very Long Category Name " * 4})
+
+
+def test_every_offer_type_has_a_theme():
+    assert set(THEMES) == set(OfferType)
+
+
+def test_card_is_the_same_each_time():
+    offer = make_offer(OfferType.FLAT_ABOVE_MIN, amount=200, min_basket=1499)
+    assert render_offer_card(offer, NAMES) == render_offer_card(offer, NAMES)
+
+
+def test_offer_types_look_different():
+    cards = {render_offer_card(offer, NAMES) for offer, _ in ALL_TYPES}
+    assert len(cards) == len(ALL_TYPES)

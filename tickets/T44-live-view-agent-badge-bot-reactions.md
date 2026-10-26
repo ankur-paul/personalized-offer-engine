@@ -1,5 +1,5 @@
 # T44 — Live view: agent badge, Agent filter and Customer Bot reactions on playback
-**Status:** TODO
+**Status:** DONE
 **Prereqs:** T43 · **Branch:** t44-agent-badge-bot-reactions
 
 ## Goal
@@ -40,6 +40,17 @@ filter to list only those, and fills "What the Customer did" when a Decision is 
    a page of their own would be nearly empty. A reaction ends one Decision, and the live view already has its slot
    below the Offer stage. Record this in `docs/QnA.md` under the latest round.
 
+Done as built:
+- A Tester's fate (`source = tester_claim`) counts as Claimed: it is drawn when the Tester claims, so it has no
+  `claim_at` of its own.
+- The Agent switch's selectors now use `#agent-switch`, since the ticker filter reuses the `.switch` class.
+- In the 260 px rail, "· Customer Bot replied" wraps to a third line rather than being cut off, and a Fallback chip can
+  push a long Customer name into its ellipsis. The row's tooltip still has the full name.
+- "Customer Bot" in a ticker row keeps its hover tooltip but takes no focus, because it sits inside the row's button.
+- `fetch_decisions` had no tests of its own; they are in `tests/test_format.py`.
+- Checked on a copy of the live database served on port 8503, after the page's Reset, at 1280 px in both themes. The
+  "No reaction yet" text was checked by deleting one fate in that copy.
+
 ### Look and feel
 Follows T39's and T43's Look and feel with these changes:
 - **Chip:** 14 px text, 0 8 px padding, 8 px radius, on line 1 after the outcome with 8 px between them. "Agent"
@@ -76,10 +87,10 @@ In `tests/live_view/test_app.py` and the `_format` tests:
 - Repeat in dark theme.
 
 ## Done when
-- [ ] Ticker rows show the Agent or Fallback chip and "Customer Bot replied"
-- [ ] "All / Agent" filter, filtered on the server, remembered across reloads
-- [ ] Playback fills "What the Customer did" from stored reactions and fates
-- [ ] QnA entry records why reactions stay on the live view and get no page of their own
-- [ ] Look and feel holds at 1280 px in both themes
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T44: agent badge and Customer Bot reactions in the live view`
+- [x] Ticker rows show the Agent or Fallback chip and "Customer Bot replied"
+- [x] "All / Agent" filter, filtered on the server, remembered across reloads
+- [x] Playback fills "What the Customer did" from stored reactions and fates
+- [x] QnA entry records why reactions stay on the live view and get no page of their own
+- [x] Look and feel holds at 1280 px in both themes
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T44: agent badge and Customer Bot reactions in the live view`

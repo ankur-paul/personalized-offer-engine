@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Sequence
+
+from offer_engine.domain import Chooser
 
 TIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -19,8 +22,9 @@ def fetch_decisions(
     last: int | None = None,
     customer_id: str | None = None,
     decision_id: int | None = None,
+    choosers: Sequence[Chooser] | None = None,
 ) -> list[sqlite3.Row]:
-    """Decisions joined with their Offers, newest first."""
+    """Decisions joined with their Offers, newest first; only those made by `choosers` when given."""
     where, params = [], []
     if customer_id:
         where.append("d.customer_id = ?")
@@ -28,6 +32,9 @@ def fetch_decisions(
     if decision_id is not None:
         where.append("d.id = ?")
         params.append(decision_id)
+    if choosers is not None:
+        where.append(f"d.chooser IN ({','.join('?' * len(choosers))})")
+        params += [str(c) for c in choosers]
     query = DECISION_QUERY + (f" WHERE {' AND '.join(where)}" if where else "") + " ORDER BY d.id DESC"
     if last is not None:
         query += " LIMIT ?"

@@ -1,6 +1,6 @@
 """The live engine view's server (T39, T40): scenarios, the SSE stream of a run, one run at a time, the password, stored
-traces, the latest Decisions, the Glossary, the outcome, the truth panel, the Offer Card, counters, Reset and the
-Agent switch. Runs on the 50-Customer world with stand-in scenarios and a fake offer agent."""
+traces, the latest Decisions and their Agent filter (T44), the Glossary, the outcome, a played-back Offer's stored
+outcome (T44), the truth panel, the Offer Card, counters, Reset and the Agent switch. Runs on the 50-Customer world with stand-in scenarios and a fake offer agent."""
 
 from __future__ import annotations
 
@@ -201,7 +201,9 @@ def test_latest_lists_the_newest_decisions_first_with_their_offer(client):
         "trigger": "cart_abandoned",
         "offer": "No Offer",
         "offer_id": None,
+        "chooser": "rules",
         "traced": True,
+        "reacted": False,
     }
     assert latest[1]["offer"].startswith("free_shipping")
 
@@ -220,6 +222,35 @@ def test_latest_names_each_customer_with_a_persona_card(client, world, personas_
     world.execute("UPDATE decisions SET customer_id = ? WHERE id = (SELECT MAX(id) FROM decisions)", (copy,))
     world.commit()
     assert named()[0] == (copy, "Asha Verma")
+
+
+def set_chooser(world, decision_id: int, chooser: Chooser) -> None:
+    world.execute("UPDATE decisions SET chooser = ? WHERE id = ?", (str(chooser), decision_id))
+    world.commit()
+
+
+def test_latest_agent_keeps_agent_and_fallback_decisions(client, world):
+    # A scenario's rerun replaces its Customer's Decision, so one run each; the newest is a rules Decision.
+    agent = run(client, "offer")[-1][1]["decision_id"]
+    fallback = run(client, "holdout")[-1][1]["decision_id"]
+    rules = pipeline.decide(world, "C00001", TriggerKind.DAILY_SWEEP, clock.now(world)).id
+    set_chooser(world, agent, Chooser.AGENT)
+    set_chooser(world, fallback, Chooser.FALLBACK)
+    rows = client.get("/decisions/latest", params={"chooser": "agent"}).json()
+    assert [(d["id"], d["chooser"]) for d in rows] == [(fallback, "fallback"), (agent, "agent")]
+    assert client.get("/decisions/latest").json()[0]["id"] == rules
+
+
+def test_latest_refuses_any_other_chooser(client):
+    for value in ("bogus", "rules", "fallback"):
+        assert client.get("/decisions/latest", params={"chooser": value}).status_code == 422
+
+
+def test_latest_marks_an_offer_a_customer_bot_replied_to(client, world):
+    result = run(client, "offer")[-1][1]
+    assert client.get("/decisions/latest").json()[0]["reacted"] is False
+    save_bot_response(world, result["offer_id"])
+    assert client.get("/decisions/latest").json()[0]["reacted"] is True
 
 
 def test_glossary_has_every_term_with_one_sentence(client):
@@ -492,3 +523,67 @@ def test_a_scenario_trace_holds_no_ground_truth(client, world):
     }
     found = {n for n in names if re.search(rf"\b{re.escape(n)}\b", text)}
     assert found == set()
+
+
+# --- T44: a played-back Offer's outcome ---------------------------------------------------------------
+
+
+def save_bot_response(world, offer_id: int) -> None:
+    world.execute(
+        "INSERT INTO sim_bot_responses (offer_id, p_base, fit, p_used, buys, claims, reply, created_at) "
+        "VALUES (?, 0.04, -0.5, 0.034, 0, 1, 'Fine, I will look.\n/claim POE-X', '2026-12-01T00:00:00')",
+        (offer_id,),
+    )
+    world.commit()
+
+
+def test_outcome_of_a_customer_bot_reaction_is_what_it_stored(client, world):
+    offer_id = run(client, "offer")[-1][1]["offer_id"]
+    save_bot_response(world, offer_id)
+    assert client.get(f"/offers/{offer_id}/outcome").json() == {
+        "outcome": {
+            "p_base": 0.04,
+            "fit": -0.5,
+            "p_used": 0.034,
+            "buys": False,
+            "claims": True,
+            "reply": "Fine, I will look.\n/claim POE-X",
+            "bot_reply": None,
+        }
+    }
+
+
+def test_outcome_of_a_fate_without_a_chat_matches_the_run(client):
+    """The scenario's own outcome, read back from `sim_offer_fates`: no fit, no replies."""
+    result = run(client, "offer")[-1][1]
+    stored = client.get(f"/offers/{result['offer_id']}/outcome").json()["outcome"]
+    assert stored["fit"] is None and stored["reply"] is None and stored["bot_reply"] is None
+    assert stored["p_base"] == stored["p_used"] == pytest.approx(result["outcome"]["p_used"])
+    assert (stored["buys"], stored["claims"]) == (result["outcome"]["buys"], result["outcome"]["claims"])
+
+
+def test_outcome_claims_when_the_fate_claims_or_buys(client, world):
+    offer_id = run(client, "offer")[-1][1]["offer_id"]
+
+    def fate(buys, claim_at, source):
+        """`claims` for the Offer once its fate is set to these."""
+        world.execute(
+            "UPDATE sim_offer_fates SET buys = ?, claim_at = ?, source = ? WHERE offer_id = ?",
+            (buys, claim_at, source, offer_id),
+        )
+        world.commit()
+        return client.get(f"/offers/{offer_id}/outcome").json()["outcome"]["claims"]
+
+    assert fate(0, None, "ground_truth") is False
+    assert fate(0, "2026-12-02T10:00:00", "ground_truth") is True
+    assert fate(1, None, "ground_truth") is True
+    # A Tester's fate is drawn when they claim.
+    assert fate(0, None, "tester_claim") is True
+
+
+def test_outcome_is_null_before_a_reaction_and_404_for_an_unknown_offer(client, world):
+    offer_id = run(client, "offer")[-1][1]["offer_id"]
+    world.execute("DELETE FROM sim_offer_fates WHERE offer_id = ?", (offer_id,))
+    world.commit()
+    assert client.get(f"/offers/{offer_id}/outcome").json() == {"outcome": None}
+    assert client.get("/offers/999999/outcome").status_code == 404

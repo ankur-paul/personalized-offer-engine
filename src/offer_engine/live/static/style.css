@@ -347,6 +347,20 @@ details pre {
 .ticker .what strong { font-weight: 600; }
 .ticker .what strong.ok { color: var(--ok); }
 .ticker .when { color: var(--muted); }
+/* "· Customer Bot replied" can push line 2 past the rail; it wraps rather than hide (T44). */
+.ticker .when.replied { white-space: normal; }
+/* Which Decisions the LLM was called for (T44): the agent's own, or its answer rejected for the Fallback. */
+.chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+.chip.agent { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-soft); }
+.chip.fallback { color: var(--muted); border: 1px solid var(--muted); }
 .ticker .empty { font-size: 14px; color: var(--muted); }
 
 /* --- Counters strip and controls (T40) ----------------------------------------------------------- */

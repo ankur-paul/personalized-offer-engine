@@ -37,6 +37,11 @@ const RULE_NAMES = {
   max_flat_amount: "Most ₹ off", max_points_multiplier: "Most points multiplier", max_send_delay_hours: "Send delay",
 };
 const CHOOSER_NAMES = { agent: "agent", rules: "rules chooser", fallback: "Fallback" };
+// The ticker's chip for a Decision the LLM was called for (T44); a rules Decision has none.
+const CHOOSER_CHIPS = {
+  agent: ["Agent", "Chosen by the agent"],
+  fallback: ["Fallback", "The agent's answer failed Validation; the rules chooser decided"],
+};
 const PARAM_NAMES = { pct: "Discount", cap: "Cap", amount: "Amount off", min_basket: "Minimum basket", multiplier: "Points multiplier" };
 // Response Classes, with the Glossary's own words for each.
 const RESPONSE_CLASSES = {
@@ -721,7 +726,9 @@ function renderPanels() {
   const decisionId = r ? r.decision_id : player.replay && player.replay.decisionId;
   const customerId = r ? r.customer_id : trigger && trigger.data.customer_id;
   const offerId = r ? r.offer_id : player.replay && player.replay.offerId;
-  panels.innerHTML = `${offer.data.offer_type ? outcomePanel(offerId, offer.data, r && r.outcome) : ""}
+  // A scenario run brings its outcome; a playback fetches the stored one (undefined while it loads).
+  const outcome = r ? r.outcome : offerId != null ? undefined : null;
+  panels.innerHTML = `${offer.data.offer_type ? outcomePanel(offerId, offer.data, outcome) : ""}
     <section class="card panel truth" id="truth" aria-labelledby="truth-title">
       <span class="hidden-label">Hidden from the engine: simulator only</span>
       <h2 id="truth-title">What the simulator knows</h2>
@@ -729,6 +736,7 @@ function renderPanels() {
     </section>`;
   panels.querySelectorAll(".panel").forEach(firstUseOnly);
   if (customerId && decisionId != null) loadTruth(player.generation, customerId, decisionId);
+  if (offer.data.offer_type && outcome === undefined) loadOutcome(player.generation, offerId);
 }
 
 function outcomePanel(offerId, offer, outcome) {
@@ -736,11 +744,12 @@ function outcomePanel(offerId, offer, outcome) {
   const image = offerId != null
     ? `<img class="offer-card" src="/offers/${offerId}/card.png" alt="${escapeHtml(alt)}" width="800" height="450">` : "";
   const steps = outcome ? outcomeSteps(outcome)
-    : `<p class="summary">This Decision was played back from the log. The chance, the flip and the replies show for a scenario run.</p>`;
+    : outcome === undefined ? `<p class="summary">Loading what the ${withTerms("Customer")} did<span class="dots"></span></p>`
+    : noReaction();
   return `<section class="card panel" aria-labelledby="outcome-title">
       <p class="eyebrow">After the Offer</p>
       <h2 id="outcome-title">What the Customer did</h2>
-      <div class="outcome-grid">${image}<div class="outcome-steps">${steps}</div></div>
+      <div class="outcome-grid">${image}<div class="outcome-steps" id="outcome-steps">${steps}</div></div>
     </section>`;
 }
 
@@ -776,6 +785,25 @@ function outcomeSteps(o) {
       <span class="state ${answer[0]}">${withTerms(answer[1])}</span>
       ${o.bot_reply ? `<blockquote class="reply"><span class="who">${withTerms("Offer Bot")}</span>${escapeHtml(o.bot_reply)}</blockquote>` : ""}
     </section>`;
+}
+
+function noReaction() {
+  return `<p class="summary">No reaction yet: the ${withTerms("Customer")} hasn't answered this ${withTerms("Offer")}.</p>`;
+}
+
+// A played-back Offer's outcome, from the simulator's stored reaction or fate (T44).
+async function loadOutcome(generation, offerId) {
+  let html;
+  try {
+    const { outcome } = await getJson(`/offers/${offerId}/outcome`);
+    html = outcome ? outcomeSteps(outcome) : noReaction();
+  } catch (e) {
+    html = `<p class="summary">Couldn't load what the ${withTerms("Customer")} did (${escapeHtml(e.message)}).</p>`;
+  }
+  const steps = $("outcome-steps");
+  if (generation !== player.generation || !steps) return;
+  steps.innerHTML = html;
+  firstUseOnly(steps.closest(".panel"));
 }
 
 // The Customer Bot's message without its `/claim CODE` or `/notnow CODE` line; the chip below says which it was.
@@ -870,7 +898,7 @@ async function loadAgentMode(promise = getJson("/agent-mode")) {
     setStatus(e.status === 400 ? "Live needs ANTHROPIC_API_KEY in .env" : `Couldn't switch the agent (${e.message})`, true);
     return;
   }
-  for (const button of document.querySelectorAll(".switch button")) {
+  for (const button of document.querySelectorAll("#agent-switch button")) {
     const live = button.dataset.mode === "live";
     button.setAttribute("aria-pressed", String(button.dataset.mode === state.mode));
     button.disabled = live && !state.live_ready && state.mode !== "live";
@@ -881,7 +909,7 @@ async function loadAgentMode(promise = getJson("/agent-mode")) {
 }
 
 function setupControls() {
-  document.querySelector(".switch").addEventListener("click", (e) => {
+  $("agent-switch").addEventListener("click", (e) => {
     const button = e.target.closest("button[data-mode]");
     if (!button || button.disabled || button.getAttribute("aria-pressed") === "true") return;
     loadAgentMode(getJson("/agent-mode", {
@@ -1008,24 +1036,52 @@ function markPlaying(button, decisionId) {
 
 // --- Latest Decisions ----------------------------------------------------------------------------
 
-const ticker = { rows: [], long: false, playing: null, failed: false };
+// `filter` is "all" or "agent"; the server filters, so "agent" lists the newest agent Decisions (T44).
+const ticker = { rows: [], long: false, playing: null, failed: false, filter: "all" };
+const TICKER_FILTER_KEY = "live-ticker-filter";
 
 async function refreshTicker() {
   if (document.hidden) return;
+  const filter = ticker.filter;
+  let rows = null;
   try {
-    ticker.rows = await getJson("/decisions/latest");
-    ticker.failed = false;
-  } catch {
-    ticker.failed = true;
-  }
+    rows = await getJson(filter === "agent" ? "/decisions/latest?chooser=agent" : "/decisions/latest");
+  } catch { /* shown below */ }
+  // The filter changed while this was loading: the newer request draws the list.
+  if (filter !== ticker.filter) return;
+  ticker.failed = rows === null;
+  if (rows) ticker.rows = rows;
   renderTicker();
+}
+
+function setupTickerFilter() {
+  try {
+    if (localStorage.getItem(TICKER_FILTER_KEY) === "agent") ticker.filter = "agent";
+  } catch { /* storage blocked: show all */ }
+  const box = $("ticker-filter");
+  const mark = () => box.querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.filter === ticker.filter)));
+  mark();
+  box.addEventListener("click", (e) => {
+    const button = e.target.closest("button[data-filter]");
+    if (!button || button.dataset.filter === ticker.filter) return;
+    ticker.filter = button.dataset.filter;
+    try { localStorage.setItem(TICKER_FILTER_KEY, ticker.filter); } catch { /* not remembered */ }
+    mark();
+    ticker.rows = [];
+    renderTicker();
+    refreshTicker();
+  });
 }
 
 function renderTicker() {
   const list = $("ticker");
   const rows = ticker.rows.slice(0, ticker.long ? TICKER_LONG : TICKER_SHORT);
   if (!rows.length) {
-    list.innerHTML = `<li class="empty">${ticker.failed ? "Couldn't load Decisions." : "No Decisions yet."}</li>`;
+    const none = ticker.filter === "agent"
+      ? "No agent Decisions yet. The agent decides for Customers with a chat: run a scenario or advance the clock."
+      : "No Decisions yet.";
+    list.innerHTML = `<li class="empty">${ticker.failed ? "Couldn't load Decisions." : none}</li>`;
   } else {
     // Line 1: the outcome, then who; line 2: the Trigger and when. The full Offer and the IDs are in the title.
     list.innerHTML = rows.map((d) => {
@@ -1033,11 +1089,15 @@ function renderTicker() {
       const who = d.customer_name || d.customer;
       const title = `Decision #${d.id}: ${offerText(offer)} for ${d.customer_name ? `${who} (${d.customer})` : who}. ` +
         (d.traced ? "Play this Decision" : "This Decision has no trace");
+      const chip = CHOOSER_CHIPS[d.chooser];
+      // A term inside a button keeps its hover tooltip but takes no focus of its own.
+      const replied = d.reacted ? ` · ${withTerms("Customer Bot").replace(' tabindex="0"', "")} replied` : "";
       return `<li><button type="button" class="row ${d.id === ticker.playing ? "playing" : ""}"
         data-id="${d.id}" data-offer="${d.offer_id ?? ""}" ${d.traced ? "" : "disabled"} title="${escapeHtml(title)}">
-        <span class="what"><strong class="${offer ? "ok" : ""}">${offer ? "✓" : "–"} ${escapeHtml(shortOffer(offer))}</strong>
+        <span class="what"><strong class="${offer ? "ok" : ""}">${offer ? "✓" : "–"} ${escapeHtml(shortOffer(offer))}</strong>${chip
+          ? `<span class="chip ${d.chooser}" title="${escapeHtml(chip[1])}">${chip[0]}</span>` : ""}
           <span class="who">${escapeHtml(who)}</span></span>
-        <span class="when">${escapeHtml(words(d.trigger))} · ${escapeHtml(shortWhen(d.time))}</span></button></li>`;
+        <span class="when ${replied ? "replied" : ""}">${escapeHtml(words(d.trigger))} · ${escapeHtml(shortWhen(d.time))}${replied}</span></button></li>`;
     }).join("");
   }
   const more = $("ticker-more");
@@ -1106,6 +1166,7 @@ async function main() {
   setupTheme();
   setupTooltips();
   setupControls();
+  setupTickerFilter();
   player.states = Object.fromEntries(STAGES.map((n) => [n, "idle"]));
   drawDiagram();
   let width = 0;
