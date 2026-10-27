@@ -26,6 +26,8 @@ deployed bot. Closes the pass; mandatory (PLAN §1, §8).
 - Run the click-through on the deployed host; fix small breakages in this ticket; anything bigger becomes a new
   ticket via `/tickets` and goes into PROGRESS.md "Known issues / cuts".
 - Use the `unslop` skill on README and DEMO (CLAUDE.md › Docs).
+- `README.md` was written on main ahead of this ticket (2026-10-27). Still to add: the deploy (T29), a link to
+  `docs/DEMO.md`, the architecture diagram, and fresh `simulate` numbers if the run is repeated.
 
 ## Tests
 `tests/test_end_to_end.py` as above.
