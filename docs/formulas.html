@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Offer Engine Formulas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sticky contents rail on the left, one reading column on the right. Two sides of the model get two
+   hues: amber for the hidden simulator, teal for the engine. */
+:root {
+  --bg: #f6f7f4;
+  --surface: #ffffff;
+  --ink: #1c2421;
+  --muted: #5b6862;
+  --line: #dde2dc;
+  --engine: #0d6e64;
+  --engine-soft: #e3f1ee;
+  --sim: #a4520c;
+  --sim-soft: #fbefe2;
+  --chart-grid: #e6e9e4;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131816; --surface: #1a201d; --ink: #e4ebe7; --muted: #9aa8a1; --line: #2c3531;
+    --engine: #5cc7b8; --engine-soft: #16302b; --sim: #f0a35c; --sim-soft: #33261a; --chart-grid: #26302c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131816; --surface: #1a201d; --ink: #e4ebe7; --muted: #9aa8a1; --line: #2c3531;
+  --engine: #5cc7b8; --engine-soft: #16302b; --sim: #f0a35c; --sim-soft: #33261a; --chart-grid: #26302c;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.6 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.page { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 56px; }
+@media (max-width: 860px) { .page { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 48px; font-size: 13.5px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: block; padding: 3px 0; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); }
+nav.toc .grp { font: 600 11px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; margin: 22px 0 6px; }
+nav.toc .grp.sim { color: var(--sim); } nav.toc .grp.engine { color: var(--engine); } nav.toc .grp.score { color: var(--muted); }
+
+main { min-width: 0; max-width: 760px; }
+header { padding-top: 48px; display: grid; gap: 14px; }
+.eyebrow { font: 500 12px/1 var(--mono); color: var(--muted); letter-spacing: .04em; }
+h1 { font: 700 clamp(34px, 6vw, 52px)/1.05 var(--display); margin: 0; letter-spacing: -.02em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; margin: 0; }
+
+.sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 18px; }
+.side { border-radius: 10px; padding: 16px 18px; display: grid; gap: 4px; }
+.side.sim { background: var(--sim-soft); }
+.side.engine { background: var(--engine-soft); }
+.side b { font: 600 15px/1.3 var(--display); }
+.side.sim b { color: var(--sim); } .side.engine b { color: var(--engine); }
+.side span { font-size: 14px; color: var(--ink); }
+.note { font-size: 14px; color: var(--muted); margin: 6px 0 0; }
+
+.part { margin-top: 64px; display: grid; gap: 6px; }
+.part .tag { font: 600 12px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; }
+.part.sim .tag { color: var(--sim); } .part.engine .tag { color: var(--engine); } .part.score .tag { color: var(--muted); }
+.part h2 { font: 700 30px/1.15 var(--display); margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+.part p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+section.f { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--line); display: grid; gap: 12px; scroll-margin-top: 16px; }
+section.f h3 { font: 600 21px/1.25 var(--display); margin: 0; text-wrap: balance; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; }
+.src { font: 400 12px/1.4 var(--mono); color: var(--muted); }
+section.f p, section.f li { max-width: 65ch; margin: 0; }
+section.f ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+
+.eq { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 18px; overflow-x: auto; }
+.part.sim ~ .eq, .sim-eq { border-left: 3px solid var(--sim); }
+.engine-eq { border-left: 3px solid var(--engine); }
+.score-eq { border-left: 3px solid var(--muted); }
+mjx-container[display="true"] { margin: .6em 0 !important; }
+
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px/1.3 var(--body); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+td:first-child { white-space: nowrap; }
+code { font: 0.88em var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+/* Interactive curve */
+.lab { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; }
+.lab-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: baseline; }
+.lab-head b { font: 600 15px/1.3 var(--display); }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { font: 500 13px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+.presets button:hover { border-color: var(--sim); }
+.presets button:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
+.sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 20px; }
+.sliders label { display: grid; gap: 4px; font-size: 13.5px; color: var(--muted); }
+.sliders output { font: 500 13px var(--mono); color: var(--ink); }
+input[type=range] { width: 100%; accent-color: var(--sim); }
+svg.chart { width: 100%; height: auto; display: block; }
+.readout { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; }
+.readout span { color: var(--muted); }
+.readout strong { font: 500 14px var(--mono); color: var(--ink); }
+.pill { font: 600 12px/1 var(--body); padding: 5px 9px; border-radius: 999px; background: var(--sim-soft); color: var(--sim); }
+
+footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<script>
+window.MathJax = {
+  tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+  svg: { fontCache: "global" },
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js" async></script>
+
+<div class="page">
+  <nav class="toc" aria-label="Contents">
+    <div class="grp sim">Simulator</div>
+    <a href="#base">Base chance</a>
+    <a href="#pbuy">Ground Truth chance</a>
+    <a href="#truelift">True Lift</a>
+    <a href="#rclass">Response Class</a>
+    <a href="#buys">Who buys</a>
+    <div class="grp engine">Engine</div>
+    <a href="#estlift">Estimated Lift</a>
+    <a href="#liftat">Lift at a depth</a>
+    <a href="#cost">Offer cost</a>
+    <a href="#valuation">Valuation</a>
+    <a href="#budget">Weekly budget</a>
+    <a href="#holdout">Holdout</a>
+    <div class="grp score">Scoring</div>
+    <a href="#margin">Margin</a>
+    <a href="#incmargin">Incremental Margin</a>
+    <a href="#deciles">Lift by decile</a>
+  </nav>
+
+  <main>
+    <header>
+      <div class="eyebrow">Personalised Offer Engine · docs/FORMULAS.md</div>
+      <h1>Offer Engine Formulas</h1>
+      <p class="lede">Every formula the engine and the simulator use, with the file that holds it. All chances are for buying within 7 days, and \(\operatorname{clamp}(x)\) limits \(x\) to the range 0 to 1.</p>
+      <div class="sides">
+        <div class="side sim"><b>Simulator</b><span>Knows each Customer's hidden Ground Truth and uses it to decide who buys.</span></div>
+        <div class="side engine"><b>Engine</b><span>Sees only what a real marketplace would: past Offers and orders. Works from Estimated Lift.</span></div>
+      </div>
+      <p class="note">The two sides never share numbers (ADR 0002). Comparing the engine's Estimated Lift with the simulator's true Lift shows how good the engine's guesses are.</p>
+    </header>
+
+    <!-- ============ PART 1 ============ -->
+    <div class="part sim">
+      <div class="tag">Part 1 · Hidden from the engine</div>
+      <h2>The simulator</h2>
+    </div>
+
+    <section class="f" id="base">
+      <h3>Base chance: buying with no Offer <span class="src">sim/ground_truth.py › organic_weekly_chance</span></h3>
+      <div class="eq sim-eq">
+        \[ \text{per session} = \sum_{c\,\in\,\text{categories}} \text{share}_c \times \text{cart}_c \times \text{order}_c \]
+        \[ \text{sessions} = 7 \times \text{visit rate} \times \text{lapse factor} \times \text{demand} \]
+        \[ \text{base} = 1 - e^{-\,\text{sessions}\, \times\, \text{per session}} \]
+      </div>
+      <p>Sessions arrive at random (Poisson), so the chance of at least one order in 7 days is one minus \(e\) to the minus expected orders.</p>
+      <div class="tbl"><table>
+        <tr><th>Term</th><th>Value</th></tr>
+        <tr><td>\(\text{cart}_c\)</td><td>\(\min(0.95,\ \text{CART\_RATE}_c \times \text{buy propensity} \times \text{demand})\)</td></tr>
+        <tr><td>\(\text{order}_c\)</td><td>Order chance given a cart: 0.14 (electronics) up to 0.30 (grocery)</td></tr>
+        <tr><td>lapse factor</td><td>0.03 if the Customer has lapsed, else 1</td></tr>
+        <tr><td>demand</td><td>\(\sqrt{\text{season(day)}}\): weekends, the festive window and the peak sale week. The root puts half the effect on visits and half on conversion</td></tr>
+      </table></div>
+      <p>Ground Truth is drawn at normal demand. When an Offer is sent, the simulator recomputes the base for that day's season and lapse state.</p>
+    </section>
+
+    <section class="f" id="pbuy">
+      <h3>Ground Truth chance with an Offer <span class="src">sim/ground_truth.py › p_buy</span></h3>
+      <div class="eq sim-eq">
+        \[ p_{\text{buy}}(\text{depth}) = \operatorname{clamp}\!\Big(\text{base} + \text{max\_lift} \times \big(1 - e^{-\text{depth}/k}\big)\Big) \]
+      </div>
+      <p>The Offer adds up to <em>max_lift</em> to the base chance. Deeper Offers add more, with diminishing returns: at depth \(= k\) the Offer gives about 63% of max_lift, and at \(3k\) about 95%. Each Customer has one hidden formula per Offer Type.</p>
+
+      <div class="lab" aria-label="Ground Truth curve explorer">
+        <div class="lab-head">
+          <b>Try it: one Customer's % off curve</b>
+          <div class="presets" role="group" aria-label="Example Customers">
+            <button type="button" data-p="0.03,0.12,0.12">Persuadable</button>
+            <button type="button" data-p="0.12,0.02,0.12">Sure Thing</button>
+            <button type="button" data-p="0.02,0.01,0.12">Lost Cause</button>
+            <button type="button" data-p="0.10,-0.06,0.12">Sleeping Dog</button>
+          </div>
+        </div>
+        <div class="sliders">
+          <label for="s-base">base <output id="o-base"></output><input id="s-base" type="range" min="0" max="0.3" step="0.005" value="0.03"></label>
+          <label for="s-max">max_lift <output id="o-max"></output><input id="s-max" type="range" min="-0.15" max="0.3" step="0.005" value="0.12"></label>
+          <label for="s-k">k <output id="o-k"></output><input id="s-k" type="range" min="0.04" max="0.6" step="0.01" value="0.12"></label>
+        </div>
+        <svg class="chart" id="chart" viewBox="0 0 600 270" role="img" aria-label="Chance of buying against Offer depth"></svg>
+        <div class="readout">
+          <div><span>At 15% off: chance </span><strong id="r-p"></strong></div>
+          <div><span>Lift </span><strong id="r-l"></strong></div>
+          <div><span>Response Class </span><b class="pill" id="r-c"></b></div>
+        </div>
+      </div>
+
+      <p><strong>Depth</strong> says how strong an Offer is, in its type's units:</p>
+      <div class="tbl"><table>
+        <tr><th>Offer Type</th><th>depth</th></tr>
+        <tr><td>% off a category</td><td>\(\text{pct} / 100\)</td></tr>
+        <tr><td>flat off above a minimum</td><td>\(\text{amount} / \text{category's average basket}\)</td></tr>
+        <tr><td>points multiplier</td><td>\(\text{multiplier} - 1\)</td></tr>
+        <tr><td>free shipping, Nudge</td><td>\(1\)</td></tr>
+      </table></div>
+
+      <p><strong>max_lift</strong> is drawn once per Customer from their traits, times lognormal noise (mean 1, σ = 0.5):</p>
+      <div class="tbl"><table>
+        <tr><th>Offer Type</th><th>mean max_lift</th></tr>
+        <tr><td>% off, flat off</td><td>\(0.13 \times \text{coupon affinity}^2\)</td></tr>
+        <tr><td>points multiplier</td><td>\(0.4 \times 0.13 \times \text{coupon affinity}^2\)</td></tr>
+        <tr><td>free shipping</td><td>\(0.012 \times \text{basket size}^{-1.5} \times \text{city tier factor}\) (tier 1: 0.6, tier 2: 1.0, tier 3: 1.5)</td></tr>
+        <tr><td>Nudge</td><td>\(0.008\)</td></tr>
+      </table></div>
+      <p>So Customers who like coupons respond to discounts, and small-basket Customers in smaller cities respond to free shipping.</p>
+      <p><strong>k</strong> is the saturation depth: 0.12 for % off and flat off, 0.5 for free shipping and Nudge, 1.0 for points. Each Customer's k varies around it (lognormal, σ = 0.2).</p>
+      <p><strong>Sleeping Dogs</strong> are 3% of Customers. Any Offer makes them less likely to buy:</p>
+      <div class="eq sim-eq">\[ \text{max\_lift} = -\,\text{base} \times U(0.3,\ 0.8) \quad \text{for every Offer Type} \]</div>
+      <p>If the base changes later (season, lapse), <code>with_base</code> scales this drop in proportion.</p>
+    </section>
+
+    <section class="f" id="truelift">
+      <h3>True Lift <span class="src">sim/offline.py › true_lift</span></h3>
+      <div class="eq sim-eq">
+        \[ \text{true lift} = p_{\text{buy}}(\text{depth}) - \text{base} \;=\; \text{max\_lift} \times \big(1 - e^{-\text{depth}/k}\big) \]
+      </div>
+      <p>Both terms use the send day's base. The second form holds unless the clamp kicks in. The Results page shows it as "Ground Truth Lift", and the live view shows it under "What the simulator knows".</p>
+    </section>
+
+    <section class="f" id="rclass">
+      <h3>Response Class <span class="src">sim/ground_truth.py › response_class</span></h3>
+      <p>Uses the % off formula at a typical 15% off. The conditions are checked in this order:</p>
+      <div class="tbl"><table>
+        <tr><th>Response Class</th><th>Condition</th><th>Target share</th></tr>
+        <tr><td>Sleeping Dog</td><td>\(\text{lift}(0.15) \lt 0\)</td><td>1–5%</td></tr>
+        <tr><td>Sure Thing</td><td>\(\text{base} \ge 0.08\)</td><td>5–15%</td></tr>
+        <tr><td>Persuadable</td><td>\(\text{lift}(0.15) \ge 0.05\)</td><td>3–10%</td></tr>
+        <tr><td>Lost Cause</td><td>everyone else</td><td>70–85%</td></tr>
+      </table></div>
+    </section>
+
+    <section class="f" id="buys">
+      <h3>Who actually buys <span class="src">sim/world/outcomes.py · customer_sim/roleplay.py</span></h3>
+      <p>Every outcome ends in a weighted coin flip. With \(p = p_{\text{buy}}(\text{depth})\), the chance depends on the kind of Customer:</p>
+      <div class="tbl"><table>
+        <tr><th>Customer</th><th>Chance of buying</th></tr>
+        <tr><td>without a chat</td><td>\(p\)</td></tr>
+        <tr><td>Tester who claimed</td><td>\(\dfrac{p}{p + 0.25\,(1 - p)}\). A quarter of non-buyers also claim, so a Claim makes buying more likely</td></tr>
+        <tr><td>Customer Bot</td><td>\(\operatorname{clamp}\big(p \times (1 + 0.3 \times \text{fit})\big)\), where the agent scores message fit from −1 to 1 (ADR 0004)</td></tr>
+      </table></div>
+      <p>Message fit moves a Customer Bot's chance by at most ±30% of itself. Ground Truth still sets the base.</p>
+    </section>
+
+    <!-- ============ PART 2 ============ -->
+    <div class="part engine">
+      <div class="tag">Part 2 · What the decision pipeline uses</div>
+      <h2>The engine</h2>
+    </div>
+
+    <section class="f" id="estlift">
+      <h3>Estimated Lift <span class="src">lift/segment_lift.py › fit</span></h3>
+      <p>Learned from the history's random past Offers by <code>offer-engine lift fit</code>, per segment and Offer Type. A segment is loyalty tier × days since the last order (≤30, 31–90, more than 90 or never) × coupon user (redeemed at least 2 past Offers).</p>
+      <div class="eq engine-eq">
+        \[ \text{observed lift} = \frac{\text{buyers after a past Offer}}{\text{past Offers}} \;-\; \frac{\text{buyers after a no-offer moment}}{\text{no-offer moments}} \]
+      </div>
+      <p>A no-offer moment is a time an Offer could have gone out but didn't: an abandoned cart, 45 days without an order, or the weekly Friday 18:00 broadcast slot. Moments inside a past Offer's 7 days don't count, and Holdout Customers are left out.</p>
+      <p>Past Offers had random depths, so the observed Lift is scaled up to the Lift at full depth:</p>
+      <div class="eq engine-eq">
+        \[ \text{saturation}_i = 1 - e^{-\text{depth}_i / k_{\text{prior}}} \qquad \text{estimated lift} = \frac{\text{observed lift}}{\operatorname{mean}_i(\text{saturation}_i)} \]
+      </div>
+      <p>A segment with fewer than 30 past Offers of a type uses that type's average over all segments.</p>
+    </section>
+
+    <section class="f" id="liftat">
+      <h3>Lift at a given depth <span class="src">choosers/priors.py › lift_at</span></h3>
+      <div class="eq engine-eq">
+        \[ \text{lift}(\text{depth}) = \text{estimated lift} \times \big(1 - e^{-\text{depth}/k_{\text{prior}}}\big) \]
+      </div>
+      <p>The same curve shape as Ground Truth, with guessed k values instead of Ground Truth's. Until <code>lift fit</code> runs, a fixed prior replaces the estimated lift. The engine assumes a base chance of 0.10 for everyone.</p>
+      <div class="tbl"><table>
+        <tr><th>Offer Type</th><th>prior max Lift</th><th>\(k_{\text{prior}}\)</th></tr>
+        <tr><td>% off</td><td>0.12</td><td>0.10</td></tr>
+        <tr><td>flat off</td><td>0.10</td><td>0.10</td></tr>
+        <tr><td>free shipping</td><td>0.04</td><td>0.50</td></tr>
+        <tr><td>points multiplier</td><td>0.05</td><td>1.00</td></tr>
+        <tr><td>Nudge</td><td>0.02</td><td>0.50</td></tr>
+      </table></div>
+    </section>
+
+    <section class="f" id="cost">
+      <h3>Offer cost <span class="src">rules.py › offer_cost · budget.py › redemption_cost</span></h3>
+      <div class="tbl"><table>
+        <tr><th>Offer Type</th><th>worst case</th><th>if redeemed</th></tr>
+        <tr><td>% off</td><td>\(\text{cap}\)</td><td>\(\min(\text{pct} \times \text{basket} / 100,\ \text{cap})\)</td></tr>
+        <tr><td>flat off</td><td>\(\text{amount}\)</td><td>\(\text{amount}\)</td></tr>
+        <tr><td>free shipping</td><td>shipping fee</td><td>shipping fee</td></tr>
+        <tr><td>points multiplier</td><td colspan="2">\((\text{multiplier} - 1) \times \text{basket} \times 0.1 \times \text{point value}\)</td></tr>
+        <tr><td>Nudge</td><td>0</td><td>0</td></tr>
+      </table></div>
+      <p>The basket is the category's average basket, or the catalog average when the Offer has no category. A Customer earns 0.1 points per ₹.</p>
+    </section>
+
+    <section class="f" id="valuation">
+      <h3>Valuation <span class="src">choosers/rules_chooser.py › assess</span></h3>
+      <div class="eq engine-eq">
+        \[ \begin{aligned}
+          \text{lift} &= \text{lift}(\text{depth}) \\
+          \text{redeem chance} &= \operatorname{clamp}(0.10 + \text{lift}) \\
+          \text{value} &= \text{lift} \times \text{expected margin} \;-\; \text{redeem chance} \times \text{cost if redeemed}
+        \end{aligned} \]
+      </div>
+      <p>The expected margin is average basket × margin % for the Offer's category, else the Customer's focus category, else the catalog average.</p>
+      <p>For each option in the Eligible Set, the engine tries a grid of terms and keeps the ones with the highest value. The rules chooser sends the best option if its value is above 0, else No Offer. The agent sees the same Eligible Set and may choose differently, within the Rules.</p>
+      <p>The value charges the full expected cost but credits only the margin the Offer causes. An Offer to a Sure Thing has low Lift and a high chance of redemption, so its value comes out negative.</p>
+    </section>
+
+    <section class="f" id="budget">
+      <h3>Weekly budget <span class="src">budget.py › budget_state · rules.py › eligible_set</span></h3>
+      <div class="eq engine-eq">
+        \[ \text{remaining} = \max(\text{weekly budget} - \text{spent} - \text{reserved},\ 0) \]
+      </div>
+      <ul>
+        <li><em>spent</em> is what this week's Redemptions actually cost.</li>
+        <li><em>reserved</em> is the cost of every outstanding, unexpired Offer: worst-case cost by default, or expected cost in expected-cost mode.</li>
+      </ul>
+      <p>The smaller of <em>remaining</em> and the per-Offer cost cap sets the most an option's terms may cost, such as the highest cap on a % off. An option leaves the Eligible Set when even its smallest terms cost more (for example a ₹50 cap).</p>
+    </section>
+
+    <section class="f" id="holdout">
+      <h3>Holdout <span class="src">rules.py › in_holdout</span></h3>
+      <div class="eq engine-eq">
+        \[ \text{in Holdout} \iff \operatorname{int}\big(\text{SHA-256}(\text{Customer ID})_{[0:8]}\big) \bmod 10{,}000 \;\lt\; \text{holdout\_pct} \times 100 \]
+      </div>
+      <p>A hash makes the Holdout permanent and the same on every run. A Tester copy shares its source Customer's Holdout.</p>
+    </section>
+
+    <!-- ============ PART 3 ============ -->
+    <div class="part score">
+      <div class="tag">Part 3 · Offline Policy runs</div>
+      <h2>Scoring the results</h2>
+    </div>
+
+    <section class="f" id="margin">
+      <h3>Margin per Customer <span class="src">sim/offline.py</span></h3>
+      <div class="eq score-eq">
+        \[ \text{margin} = \sum_{\text{orders}} \text{amount} \times \text{margin\%} \;-\; \sum_{\text{returns}} \text{amount} \times \text{margin\%} \;-\; \sum_{\text{redeemed Offers}} \text{cost} \]
+      </div>
+    </section>
+
+    <section class="f" id="incmargin">
+      <h3>Incremental Margin <span class="src">sim/metrics.py › incremental_margin</span></h3>
+      <div class="eq score-eq">
+        \[ \text{Incremental Margin} = \sum_{\text{Customers}} \big(\text{margin}_{\text{Policy}} - \text{margin}_{\text{No Offers}}\big) \]
+        \[ \text{per ₹ of spend} = \frac{\text{Incremental Margin}}{\text{total cost of redeemed Offers}} \]
+      </div>
+      <p>Both runs share the same Customers, start time, days and seed, so the only difference is the Offers. This is the headline number the engine optimises.</p>
+    </section>
+
+    <section class="f" id="deciles">
+      <h3>Lift by decile <span class="src">sim/metrics.py › lift_deciles</span></h3>
+      <p>Sent Offers are sorted by Estimated Lift and split into 10 equal groups. Each group shows its mean Estimated Lift next to its mean true Lift. If the engine's estimates are good, true Lift rises from decile 1 to decile 10.</p>
+    </section>
+
+    <footer>Source: <code>docs/FORMULAS.md</code> in the personalized-offer-engine repo, checked against the code on 28 Oct 2026.</footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  const W = 600, H = 270, L = 46, R = 16, T = 14, B = 36;
+  const XMAX = 0.6, YMAX = 0.45;
+  const x = d => L + (d / XMAX) * (W - L - R);
+  const y = p => T + (1 - p / YMAX) * (H - T - B);
+  const $ = id => document.getElementById(id);
+  const sb = $("s-base"), sm = $("s-max"), sk = $("s-k");
+  const svg = $("chart");
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, text) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const clamp = v => Math.min(1, Math.max(0, v));
+  const pBuy = (base, max, k, d) => clamp(base + max * (1 - Math.exp(-d / k)));
+  const pct = v => (v * 100).toFixed(1) + "%";
+
+  function classify(base, lift) {
+    if (lift < 0) return "Sleeping Dog";
+    if (base >= 0.08) return "Sure Thing";
+    if (lift >= 0.05) return "Persuadable";
+    return "Lost Cause";
+  }
+
+  function draw() {
+    const base = +sb.value, max = +sm.value, k = +sk.value;
+    $("o-base").textContent = base.toFixed(3);
+    $("o-max").textContent = (max >= 0 ? "" : "−") + Math.abs(max).toFixed(3);
+    $("o-k").textContent = k.toFixed(2);
+    svg.replaceChildren();
+    const grid = "var(--chart-grid)", muted = "var(--muted)", sim = "var(--sim)", ink = "var(--ink)";
+    for (let p = 0; p <= YMAX + 1e-9; p += 0.1) {
+      svg.append(el("line", { x1: L, x2: W - R, y1: y(p), y2: y(p), stroke: grid, "stroke-width": 1 }));
+      svg.append(el("text", { x: L - 8, y: y(p) + 4, "text-anchor": "end", "font-size": 11, fill: muted, "font-family": "JetBrains Mono, monospace" }, Math.round(p * 100) + "%"));
+    }
+    for (let d = 0; d <= XMAX + 1e-9; d += 0.1) {
+      svg.append(el("text", { x: x(d), y: H - B + 18, "text-anchor": "middle", "font-size": 11, fill: muted, "font-family": "JetBrains Mono, monospace" }, d.toFixed(1)));
+    }
+    svg.append(el("text", { x: W - R, y: H - 4, "text-anchor": "end", "font-size": 11.5, fill: muted, "font-family": "Public Sans, sans-serif" }, "depth (0.15 = 15% off)"));
+    svg.append(el("text", { x: L, y: T - 2 + 0, "font-size": 11.5, fill: muted, "font-family": "Public Sans, sans-serif", dy: -2 }, ""));
+
+    // Base line
+    svg.append(el("line", { x1: L, x2: W - R, y1: y(base), y2: y(base), stroke: muted, "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+    svg.append(el("text", { x: W - R, y: y(base) - 6, "text-anchor": "end", "font-size": 11.5, fill: muted, "font-family": "Public Sans, sans-serif" }, "base, no Offer"));
+
+    // Curve, with a soft fill between it and the base
+    const pts = [];
+    for (let i = 0; i <= 120; i++) { const d = (i / 120) * XMAX; pts.push([x(d), y(pBuy(base, max, k, d))]); }
+    const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const area = line + ` L ${x(XMAX)} ${y(base)} L ${x(0)} ${y(base)} Z`;
+    svg.append(el("path", { d: area, fill: sim, "fill-opacity": 0.12, stroke: "none" }));
+    svg.append(el("path", { d: line, fill: "none", stroke: sim, "stroke-width": 2.5, "stroke-linejoin": "round" }));
+
+    // 15% off marker
+    const d15 = 0.15, p15 = pBuy(base, max, k, d15);
+    svg.append(el("line", { x1: x(d15), x2: x(d15), y1: y(0), y2: y(p15), stroke: ink, "stroke-width": 1, "stroke-dasharray": "2 3", "stroke-opacity": 0.5 }));
+    svg.append(el("circle", { cx: x(d15), cy: y(p15), r: 5, fill: sim, stroke: "var(--surface)", "stroke-width": 2 }));
+
+    // depth = k marker, if it fits
+    if (k <= XMAX) {
+      const pk = pBuy(base, max, k, k);
+      svg.append(el("circle", { cx: x(k), cy: y(pk), r: 3.5, fill: "var(--surface)", stroke: sim, "stroke-width": 2 }));
+      const right = x(k) > W - 150;
+      svg.append(el("text", { x: x(k) + (right ? -8 : 8), y: y(pk) + (max >= 0 ? 16 : -8), "text-anchor": right ? "end" : "start", "font-size": 11.5, fill: sim, "font-family": "Public Sans, sans-serif" }, "depth = k: 63% of max_lift"));
+    }
+
+    const lift = p15 - base;
+    $("r-p").textContent = pct(p15);
+    $("r-l").textContent = (lift >= 0 ? "+" : "−") + pct(Math.abs(lift)).replace("%", " pts");
+    $("r-c").textContent = classify(base, lift);
+  }
+
+  [sb, sm, sk].forEach(s => s.addEventListener("input", draw));
+  document.querySelectorAll(".presets button").forEach(b => b.addEventListener("click", () => {
+    const [base, max, k] = b.dataset.p.split(",").map(Number);
+    sb.value = base; sm.value = max; sk.value = k; draw();
+  }));
+  draw();
+})();
+</script>
+</html>
