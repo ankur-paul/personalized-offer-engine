@@ -110,3 +110,4 @@ What has been built, one line per feature, in the order it landed.
 - The first Daily Sweep on the 10k world reserves about ₹49,000 of the ₹50,000 weekly budget at worst-case cost, so few paid Offers go out until those expire 3 days later. Raise the budget or switch to expected-cost budgeting on the Rules page to see more paid Offers.
 - `demo/agent_recordings.jsonl` still holds the three answers recorded before T42 for the Daily Sweep scenarios. Nothing replays them now; they are harmless.
 - `demo/agent_recordings.jsonl` still holds the three answers recorded before T42 for the Daily Sweep scenarios. Nothing replays them now; they are harmless.
+- [T29] Deployed on an AWS Lightsail instance with Docker Compose and a Cloudflare Tunnel, so the bots run with the laptop off (open https://offers.uselattice.app for the live view and https://offers-console.uselattice.app for the console; redeploy with `docs/DEPLOY.md`)

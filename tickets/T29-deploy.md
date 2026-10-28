@@ -1,5 +1,5 @@
 # T29 — Deploy to an always-on host
-**Status:** IN PROGRESS
+**Status:** DONE
 **Prereqs:** T24, T25, T40 · **Branch:** t29-deploy
 
 ## Goal
@@ -20,13 +20,14 @@ bot with the laptop off until judging ends. Mandatory (PLAN §7, §8 cut line; Q
   `docs/DEPLOY.md` says how to reset the demo on the host (the live page's Reset button, or `demo reset`).
 
 ## Details
-- **Where it stands (2026-10-28):** decided in QnA Q59–Q62, which override Scope where they differ: AWS Lightsail
-  (2 GB) + Docker Compose, a Cloudflare Tunnel on `offers.uselattice.app` (live view) and
-  `offers-console.uselattice.app` (console), no password (a $100 Anthropic spend cap instead), and the laptop's
-  databases copied up with `scp`. DEPLOY.md steps 1–7 are done and both URLs return 200. The deploy ran from a clone
-  whose branch was never pushed, so these files were recovered from the instance's `~/offer-engine`. Still to do:
-  the phone Check (step 8), then finish: FEATURES.md, `Done as built`. `uselattice.app` also hosts Lattice: add only
-  the two tunnel DNS records.
+- Done as built: QnA Q59–Q62 override Scope where they differ. The host is one AWS Lightsail instance (2 GB,
+  Mumbai) running Docker Compose, paid from AWS credits, because all four processes share one SQLite file and need
+  one machine with a local disk. A Cloudflare Tunnel serves `offers.uselattice.app` (live view) and
+  `offers-console.uselattice.app` (console), and the instance opens only SSH. The pages have no password; a $100
+  monthly Anthropic spend cap limits cost instead. The laptop's `offer_engine.db` and `demo.db` were copied up with
+  `scp` instead of rebuilding the world on the instance. The deploy ran from a clone whose branch was never pushed,
+  so the files were recovered from the instance's `~/offer-engine` (2026-10-28). `tests/test_deploy_files.py` checks
+  the deploy files without building the image.
 - Never commit secrets; the host reads them from its secret store.
 - Only one process may poll each bot token: stop the laptop instance before the host starts (say so in DEPLOY.md).
 - Make the agent use `FAST_AGENT_MODEL` for Customer Bots and the configured `OFFER_AGENT_MODEL` for offers;
@@ -43,8 +44,8 @@ console URL asks for the password and shows the Decision log; the live page URL 
 scenario button animates its Decision.
 
 ## Done when
-- [ ] Bots, console and live page run on the host with a persistent database and the demo snapshot
-- [ ] `docs/DEPLOY.md` lets someone else redeploy
-- [ ] Bot works from a phone with the laptop off
-- [ ] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
-- [ ] Committed: `T29: deploy to always-on host`
+- [x] Bots, console and live page run on the host with a persistent database and the demo snapshot
+- [x] `docs/DEPLOY.md` lets someone else redeploy
+- [x] Bot works from a phone with the laptop off
+- [x] PROGRESS.md line added; FEATURES.md updated; `uv run pytest` green
+- [x] Committed: `T29: deploy to always-on host`
