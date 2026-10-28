@@ -256,3 +256,23 @@ Decided: above them. Below 11 scenario buttons the ticker sat about 1,500 px dow
 **Q58. Do Customer Bot reactions get a page of their own? (T44)**
 Options: a page listing every Customer Bot reaction; show each reaction in the live view when its Decision plays back.
 Decided: in the live view. There are 7 Customer Bots, 4 reactions in the dev database and none in the demo snapshot, so a page of them would be nearly empty. A reaction ends one Decision, and "What the Customer did" below the Offer stage already shows it after a scenario run. Playback now fills that panel from the stored reaction or fate, and an Agent filter on Latest Decisions finds the few Decisions that used the agent.
+
+## Round 15: deployment (2026-10-27)
+
+The deploy is for hackathon evaluators, not production. T29 left the host open.
+
+**Q59. Where does the app run? (T29)**
+Options: Fly.io; Railway; an AWS Lightsail or EC2 VM; AWS App Runner, Fargate or Lambda; Render's free tier.
+Decided: one AWS Lightsail instance (2 GB) running Docker Compose, paid from AWS credits. All four processes share one SQLite file, so they need one machine with a local disk. App Runner and Lambda have no persistent disk and scale to zero. Fargate needs EFS, and SQLite's WAL mode breaks on a network file system. Render's free tier sleeps, which stops the polling bots.
+
+**Q60. How do the two web pages get HTTPS URLs? (T29)**
+Options: Caddy on the instance with an `sslip.io` hostname; a Cloudflare Tunnel on `uselattice.app`, which already hosts Lattice; Cloudflare Pages.
+Decided: a Cloudflare Tunnel, giving `offers.uselattice.app` (live view) and `offers-console.uselattice.app` (console). It adds only those two DNS records, so Lattice is unaffected, and the instance opens no web port. Pages hosts only static sites and can't run Python. Each page gets its own subdomain instead of the single URL split by path that we first discussed, so Streamlit needs no base path. The subdomains have one level because Cloudflare's free certificate doesn't cover `*.offers.uselattice.app`.
+
+**Q61. Do the deployed pages need a password? (T29)**
+Options: set `CONSOLE_PASSWORD` (the T21 gate); leave them open and cap Claude spend.
+Decided: leave them open and set a $100 monthly spend limit on the Anthropic key. The data is synthetic, and the Telegram bot is public anyway, so the password guarded only the demo's state. Anyone with the link can change Rules, advance the clock or reset the demo; the live page's Reset undoes it. Setting `CONSOLE_PASSWORD` on the instance turns the gate back on.
+
+**Q62. How does the world get onto the instance? (T29)**
+Options: rebuild it there (`generate`, `lift fit`, `chats link-showcase`, `demo snapshot`); copy the laptop's databases.
+Decided: copy `offer_engine.db` and `demo.db` with `scp`, after stopping the laptop's bots so no `-wal` file is left. It skips a slow rebuild on a small CPU and keeps the chat links and the snapshot the recordings were made against. The code goes up with `git archive HEAD`, so the instance needs no GitHub access.

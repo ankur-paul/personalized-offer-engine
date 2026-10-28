@@ -1,5 +1,5 @@
 # T29 — Deploy to an always-on host
-**Status:** TODO
+**Status:** IN PROGRESS
 **Prereqs:** T24, T25, T40 · **Branch:** t29-deploy
 
 ## Goal
@@ -20,6 +20,13 @@ bot with the laptop off until judging ends. Mandatory (PLAN §7, §8 cut line; Q
   `docs/DEPLOY.md` says how to reset the demo on the host (the live page's Reset button, or `demo reset`).
 
 ## Details
+- **Where it stands (2026-10-28):** decided in QnA Q59–Q62, which override Scope where they differ: AWS Lightsail
+  (2 GB) + Docker Compose, a Cloudflare Tunnel on `offers.uselattice.app` (live view) and
+  `offers-console.uselattice.app` (console), no password (a $100 Anthropic spend cap instead), and the laptop's
+  databases copied up with `scp`. DEPLOY.md steps 1–7 are done and both URLs return 200. The deploy ran from a clone
+  whose branch was never pushed, so these files were recovered from the instance's `~/offer-engine`. Still to do:
+  the phone Check (step 8), then finish: FEATURES.md, `Done as built`. `uselattice.app` also hosts Lattice: add only
+  the two tunnel DNS records.
 - Never commit secrets; the host reads them from its secret store.
 - Only one process may poll each bot token: stop the laptop instance before the host starts (say so in DEPLOY.md).
 - Make the agent use `FAST_AGENT_MODEL` for Customer Bots and the configured `OFFER_AGENT_MODEL` for offers;

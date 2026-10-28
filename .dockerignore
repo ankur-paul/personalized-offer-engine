@@ -1,0 +1,17 @@
+# Secrets reach the container through compose's env_file, never the image.
+.env
+.env.*
+!.env.example
+
+# The database is a volume on the host, not part of the image.
+data/
+
+.git/
+.venv/
+.claude/
+**/__pycache__/
+.pytest_cache/
+.pytest-tmp/
+.ruff_cache/
+tests/
+tickets/

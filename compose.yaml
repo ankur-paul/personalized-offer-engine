@@ -1,0 +1,21 @@
+# The deployed app (docs/DEPLOY.md). No port is published on the host: the Cloudflare Tunnel reaches the app over
+# compose's network and serves it at https://offers.uselattice.app (live view) and
+# https://offers-console.uselattice.app (console).
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      LIVE_URL: https://offers.uselattice.app
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.4
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    depends_on:
+      - app
+    restart: unless-stopped
